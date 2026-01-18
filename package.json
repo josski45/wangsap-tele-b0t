@@ -1,0 +1,30 @@
+{
+  "name": "telegram-nik-bot",
+  "version": "2.0.0",
+  "description": "Bot Telegram NIK Validator - Enhanced Edition with Cashi.id Payment Gateway",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "nik",
+    "validator",
+    "indonesia"
+  ],
+  "author": "JOSSKIDS",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "jimp": "^1.6.0",
+    "node-telegram-bot-api": "^0.64.0",
+    "qrcode": "^1.5.4",
+    "sql.js": "^1.10.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
