@@ -361,24 +361,44 @@ ${LINE.thin}
 // EDABU RESULT MESSAGE
 // ═══════════════════════════════════════════
 function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
-    const peserta = data?.peserta || [];
+    const anggota = data?.anggota || [];
+    const raw = data?.raw || [];
+    const nikDicari = data?.nik_dicari || '-';
+    const jumlahAnggota = data?.jumlah_anggota || anggota.length;
+    const alamat = data?.alamat || '-';
+    
+    // Function to get hubungan keluarga from raw data
+    const getHubungan = (nik) => {
+        const rawData = raw.find(r => r.NIK === nik);
+        return rawData?.NMHUBKEL || '-';
+    };
     
     let msg = `
 ${EMOJI.hospital} <b>HASIL CEK BPJS</b>
 ${LINE.double}
+
+🔍 NIK Dicari: <code>${nikDicari}</code>
+👥 Jumlah Anggota: <b>${jumlahAnggota}</b>
+🏠 Alamat: ${escapeHtml(alamat)}
 `;
 
-    if (peserta.length > 0) {
-        peserta.forEach((p, index) => {
-            const statusKet = p.statusPeserta?.keterangan || '-';
-            const statusIcon = statusKet.toLowerCase().includes('aktif') ? '🟢' : '🔴';
+    if (anggota.length > 0) {
+        anggota.forEach((p, index) => {
+            const hubungan = getHubungan(p.nik);
+            const statusIcon = p.status?.toLowerCase().includes('aktif') ? '🟢' : '🔴';
             msg += `
-<b>${index + 1}. ${escapeHtml(p.nama || '-')}</b>
+${LINE.sep}
+<b>ANGGOTA ${index + 1}</b> ( ${escapeHtml(hubungan.toLowerCase())} )
+${LINE.thin}
+👤 Nama: ${escapeHtml(p.nama || '-')}
 🆔 NIK: <code>${p.nik || '-'}</code>
-💳 Kartu: <code>${p.noKartu || '-'}</code>
-${statusIcon} Status: ${escapeHtml(statusKet)}
-🏥 Kelas: ${escapeHtml(p.jnsKelas?.nama || '-')}
-🏢 Faskes: ${escapeHtml(p.kdProvider || '-')}
+💳 No Kartu: <code>${p.noKartu || '-'}</code>
+⚧️ Jenis Kelamin: ${escapeHtml(p.jenisKelamin || '-')}
+📅 TTL: ${escapeHtml(p.ttl || '-')}
+📧 Email: ${escapeHtml(p.email || '-')}
+📱 No HP: ${escapeHtml(p.noHP || '-')}
+${statusIcon} Status: <b>${escapeHtml(p.status || '-')}</b>
+🏢 Perusahaan: ${escapeHtml(p.tempatKerja || '-')}
 `;
         });
     } else {
@@ -386,7 +406,7 @@ ${statusIcon} Status: ${escapeHtml(statusKet)}
     }
 
     msg += `
-${LINE.thin}
+${LINE.double}
 🆔 ID: <code>${requestId}</code>
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
