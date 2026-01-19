@@ -218,6 +218,16 @@ class APIService {
                 const data = response.data;
 
                 if (data.success && data.data && data.data.length > 0) {
+                    // Cek apakah data[0].data kosong (array kosong)
+                    const firstData = data.data[0];
+                    if (firstData && Array.isArray(firstData.data) && firstData.data.length === 0) {
+                        return {
+                            success: false,
+                            error: 'Data tidak ditemukan untuk NIK tersebut',
+                            refund: true
+                        };
+                    }
+                    
                     return {
                         success: true,
                         data: data.data,
