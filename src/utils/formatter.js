@@ -95,12 +95,11 @@ ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
 
 ${EMOJI.search} <b>MENU PENCARIAN</b>
 ${LINE.sep}
-🔍 /ceknik • <code>${checkCost}t</code>
-👤 /nama • <code>${namaCost}t</code>
-👨‍👩‍👧‍👦 /kk • <code>${kkCost}t</code>
-📷 /foto • <code>${fotoCost}t</code>
-🏥 /edabu • <code>${edabuCost}t</code>
-
+🔍 /ceknik • <code>${checkCost} token</code>
+👤 /nama • <code>${namaCost} token</code>
+👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
+📷 /foto • <code>${fotoCost} token</code>
+🏥 /edabu • <code>${edabuCost} token</code>
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
 💳 /deposit
