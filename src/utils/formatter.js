@@ -373,6 +373,12 @@ function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0)
         return rawData?.NMHUBKEL || '-';
     };
     
+    // Function to get perusahaan from raw data
+    const getPerusahaan = (nik) => {
+        const rawData = raw.find(r => r.NIK === nik);
+        return rawData?.JNSPST?.NMPKS || '-';
+    };
+    
     let msg = `
 ${EMOJI.hospital} <b>HASIL CEK BPJS</b>
 ${LINE.double}
@@ -385,6 +391,7 @@ ${LINE.double}
     if (anggota.length > 0) {
         anggota.forEach((p, index) => {
             const hubungan = getHubungan(p.nik);
+            const perusahaan = getPerusahaan(p.nik);
             const statusIcon = p.status?.toLowerCase().includes('aktif') ? '🟢' : '🔴';
             msg += `
 ${LINE.sep}
@@ -397,8 +404,9 @@ ${LINE.thin}
 📅 TTL: ${escapeHtml(p.ttl || '-')}
 📧 Email: ${escapeHtml(p.email || '-')}
 📱 No HP: ${escapeHtml(p.noHP || '-')}
+💼 Status Hubungan: <b>${escapeHtml(hubungan || '-')}</b>
 ${statusIcon} Status: <b>${escapeHtml(p.status || '-')}</b>
-🏢 Perusahaan: ${escapeHtml(p.tempatKerja || '-')}
+🏢 Perusahaan: ${escapeHtml(perusahaan || '-')}
 `;
         });
     } else {
