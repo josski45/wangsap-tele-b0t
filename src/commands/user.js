@@ -343,22 +343,30 @@ const userCommands = {
         fileContent += `Request ID: ${requestId}\n`;
         fileContent += `Bot: ${config.botName}\n`;
         if (result.fromCache) {
-            fileContent += `Source: CACHE (data tersimpan sebelumnya)\n`;
+            fileContent += `Source: SIGMABOY\n`;
         }
         fileContent += `==========================================\n\n`;
 
         if (dataList.length > 0) {
             dataList.forEach((item, index) => {
                 fileContent += `${index + 1}. ${item.NAMA || '-'}\n`;
-                fileContent += `   NIK        : ${item.NIK || '-'}\n`;
-                fileContent += `   TTL        : ${item.TEMPAT_LAHIR || '-'}, ${item.TANGGAL_LAHIR || '-'}\n`;
-                fileContent += `   JK         : ${item.JENIS_KELAMIN || '-'}\n`;
-                fileContent += `   STATUS     : ${item.STATUS || '-'}\n`;
-                fileContent += `   ALAMAT     : ${item.ALAMAT || '-'}\n`;
-                fileContent += `   KEC/KAB    : ${item.KECAMATAN || '-'} - ${item.KABUPATEN || '-'}\n`;
-                fileContent += `   PROVINSI   : ${item.PROVINSI || '-'}\n`;
+                fileContent += `   NIK          : ${item.NIK || '-'}\n`;
+                fileContent += `   NO. KK       : ${item.KK || '-'}\n`;
+                fileContent += `   TTL          : ${item.TEMPAT_LAHIR || '-'}, ${item.TANGGAL_LAHIR || '-'}\n`;
+                fileContent += `   JENIS KELAMIN: ${item.JENIS_KELAMIN || '-'}\n`;
+                fileContent += `   AGAMA        : ${item.AGAMA || '-'}\n`;
+                fileContent += `   STATUS       : ${item.STATUS || '-'}\n`;
+                fileContent += `   HUBUNGAN     : ${item.HUBUNGAN || '-'}\n`;
+                fileContent += `   GOL. DARAH   : ${item.GOL_DARAH || '-'}\n`;
+                fileContent += `   PEKERJAAN    : ${item.PEKERJAAN || '-'}\n`;
+                fileContent += `   PENDIDIKAN   : ${item.PENDIDIKAN || '-'}\n`;
+                fileContent += `   NAMA AYAH    : ${item.NAMA_AYAH || '-'}\n`;
+                fileContent += `   NAMA IBU     : ${item.NAMA_IBU || '-'}\n`;
+                fileContent += `   ALAMAT       : ${item.ALAMAT || '-'}\n`;
                 fileContent += `------------------------------------------\n`;
             });
+        } else {
+            fileContent += "Tidak ada data ditemukan.\n";
         }
 
         fileContent += `\nGenerate Date: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
