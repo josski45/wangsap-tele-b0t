@@ -100,15 +100,19 @@ ${LINE.sep}
 👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
+
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
 💳 /deposit
 💰 /saldo
 📋 /riwayat
+🎁 /ref • <i>Dapatkan link referral</i>
+📊 /myref • <i>Statistik referral</i>
 📞 /support
 
 <i>Ketik /bantuan untuk info lengkap</i>
-`;
+`
+;
 }
 
 // ═══════════════════════════════════════════
@@ -487,6 +491,87 @@ Klik tombol di bawah untuk
 menghubungi tim support kami.
 
 <i>🕐 Respon dalam 1x24 jam</i>
+
+${EMOJI.warning} <i>Jika ada kendala, langsung hubungi support ya!</i>
+`;
+}
+
+// ═══════════════════════════════════════════
+// REFERRAL MESSAGES
+// ═══════════════════════════════════════════
+function referralMessage(refCode, botUsername) {
+    const refLink = `https://t.me/${botUsername}?start=ref_${refCode}`;
+    return `
+${EMOJI.gift} <b>PROGRAM REFERRAL</b>
+${LINE.sep}
+
+🔗 <b>Link Referral Anda:</b>
+<code>${refLink}</code>
+
+<i>Tap link di atas untuk copy</i>
+
+${LINE.thin}
+${EMOJI.star} <b>CARA DAPAT BONUS:</b>
+1️⃣ Bagikan link ke teman
+2️⃣ Teman daftar via link Anda
+3️⃣ Teman deposit <b>100+ token</b>
+4️⃣ Anda dapat <b>+20 token GRATIS!</b>
+
+${EMOJI.info} <i>Ketik /myref untuk statistik</i>
+
+${EMOJI.warning} Ada kendala? Ketik <code>/support</code>
+`;
+}
+
+function referralStatsMessage(stats, botUsername) {
+    const refLink = `https://t.me/${botUsername}?start=ref_${stats.code}`;
+    return `
+${EMOJI.chart} <b>STATISTIK REFERRAL</b>
+${LINE.sep}
+
+🔗 <b>Kode:</b> <code>${stats.code}</code>
+🔗 <b>Link:</b> <code>${refLink}</code>
+
+${LINE.thin}
+👥 Total Referral: <b>${stats.totalReferred}</b>
+⏳ Pending Bonus: <b>${stats.pendingBonus}</b>
+💰 Total Bonus: <b>${stats.totalBonusEarned} token</b>
+
+${LINE.thin}
+${EMOJI.info} <i>Bonus +20 token per referral yang deposit 100+ token</i>
+
+${EMOJI.warning} Ada kendala? Ketik <code>/support</code>
+`;
+}
+
+function referralWelcomeMessage(referrerName) {
+    return `\n\n🎁 <i>Anda diundang oleh <b>${escapeHtml(referrerName)}</b>. Deposit min 100 token, referrer dapat bonus!</i>`;
+}
+
+function referralAlreadyRegisteredMessage() {
+    return `
+${EMOJI.warning} <b>SUDAH TERDAFTAR</b>
+
+Anda sudah terdaftar sebelumnya.
+Link referral hanya bisa digunakan sekali.
+
+${EMOJI.warning} Ada kendala? Ketik <code>/support</code>
+`;
+}
+
+function referralBonusNotification(referredUsername, bonusAmount) {
+    return `
+${EMOJI.gift} <b>BONUS REFERRAL!</b>
+${LINE.sep}
+
+${EMOJI.party} Selamat! Anda mendapat bonus referral.
+
+👤 Dari: <b>${escapeHtml(referredUsername || 'User')}</b>
+💰 Bonus: <b>+${bonusAmount} token</b>
+
+<i>Terima kasih sudah mengajak teman!</i>
+
+${EMOJI.warning} Ada kendala? Ketik <code>/support</code>
 `;
 }
 
@@ -713,5 +798,11 @@ module.exports = {
     pendingDepositsMessage,
     errorMessage,
     successMessage,
-    processingMessage
+    processingMessage,
+    // Referral functions
+    referralMessage,
+    referralStatsMessage,
+    referralWelcomeMessage,
+    referralAlreadyRegisteredMessage,
+    referralBonusNotification
 };

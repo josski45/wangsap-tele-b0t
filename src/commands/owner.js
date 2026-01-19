@@ -58,9 +58,9 @@ const ownerCommands = {
         const depositId = parseInt(args[0]);
         const ownerId = msg.from.id;
         
-        const deposit = db.approveDeposit(depositId, String(ownerId));
+        const result = db.approveDeposit(depositId, String(ownerId));
         
-        if (!deposit) {
+        if (!result) {
             await bot.sendMessage(msg.chat.id,
                 `❌ <b>Gagal</b>\n\nDeposit tidak ditemukan atau sudah diproses`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
@@ -69,19 +69,39 @@ const ownerCommands = {
         }
 
         // Notifikasi ke owner
-        await bot.sendMessage(msg.chat.id,
-            `✅ <b>Deposit Approved</b>\n\n👤 User: <code>${deposit.user_id}</code>\n🪙 Token: <b>+${deposit.token_amount}</b>\n💵 Amount: <b>${formatter.formatRupiah(deposit.amount)}</b>`,
-            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-        );
+        let ownerMsg = `✅ <b>Deposit Approved</b>\n\n👤 User: <code>${result.user_id}</code>\n🪙 Token: <b>+${result.token_amount}</b>\n💵 Amount: <b>${formatter.formatRupiah(result.amount)}</b>`;
+        
+        // Add referral bonus info if applicable
+        if (result.referralBonus) {
+            ownerMsg += `\n\n🎁 <b>Referral Bonus:</b>\n👤 Referrer: <code>${result.referralBonus.referrerId}</code>\n💰 Bonus: <b>+${result.referralBonus.bonusAmount} token</b>`;
+        }
+        
+        await bot.sendMessage(msg.chat.id, ownerMsg, { parse_mode: 'HTML', reply_to_message_id: msg.message_id });
 
         // Notifikasi ke user
         try {
-            await bot.sendMessage(deposit.user_id,
-                `🎉 <b>DEPOSIT BERHASIL!</b>\n\nDeposit Anda telah dikonfirmasi!\n\n🪙 Token: <b>+${deposit.token_amount}</b>\n💵 Amount: <b>${formatter.formatRupiah(deposit.amount)}</b>\n\n<i>Ketik /saldo untuk cek saldo</i>`,
+            await bot.sendMessage(result.user_id,
+                `🎉 <b>DEPOSIT BERHASIL!</b>\n\nDeposit Anda telah dikonfirmasi!\n\n🪙 Token: <b>+${result.token_amount}</b>\n💵 Amount: <b>${formatter.formatRupiah(result.amount)}</b>\n\n<i>Ketik /saldo untuk cek saldo</i>`,
                 { parse_mode: 'HTML' }
             );
         } catch (error) {
             console.error('Error notifying user:', error);
+        }
+        
+        // Notify referrer if bonus was given
+        if (result.referralBonus) {
+            try {
+                const referrer = db.getUser(result.referralBonus.referrerId);
+                const referredUser = db.getUser(result.user_id);
+                const referredName = referredUser?.username ? `@${referredUser.username}` : (referredUser?.first_name || 'User');
+                
+                await bot.sendMessage(result.referralBonus.referrerId,
+                    formatter.referralBonusNotification(referredName, result.referralBonus.bonusAmount),
+                    { parse_mode: 'HTML' }
+                );
+            } catch (error) {
+                console.error('Error notifying referrer:', error);
+            }
         }
     },
 

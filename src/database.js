@@ -190,6 +190,38 @@ function createTables() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    // ═══════════════════════════════════════════
+    // REFERRAL SYSTEM TABLES
+    // ═══════════════════════════════════════════
+    
+    // Referrals table - Track who invited who
+    exec(`
+        CREATE TABLE IF NOT EXISTS referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_id TEXT NOT NULL,
+            referred_id TEXT UNIQUE NOT NULL,
+            bonus_claimed INTEGER DEFAULT 0,
+            bonus_amount INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            bonus_claimed_at DATETIME,
+            FOREIGN KEY (referrer_id) REFERENCES users(user_id),
+            FOREIGN KEY (referred_id) REFERENCES users(user_id)
+        )
+    `);
+
+    // Referral codes table - Each user has unique code
+    exec(`
+        CREATE TABLE IF NOT EXISTS referral_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT UNIQUE NOT NULL,
+            code TEXT UNIQUE NOT NULL,
+            total_referrals INTEGER DEFAULT 0,
+            total_bonus_earned INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    `);
 }
 
 // ═══════════════════════════════════════════
@@ -273,7 +305,10 @@ function approveDeposit(depositId, approvedBy) {
     updateTokenBalance(deposit.user_id, deposit.token_amount);
     createTransaction(deposit.user_id, 'deposit', deposit.token_amount, `Deposit approved`, null, 'success');
     
-    return deposit;
+    // Process referral bonus if applicable (deposit >= 100 tokens)
+    const referralResult = processReferralBonus(deposit.user_id, deposit.token_amount);
+    
+    return { ...deposit, referralBonus: referralResult };
 }
 
 function rejectDeposit(depositId) {
@@ -457,6 +492,183 @@ function hasCachedResponse(command, query) {
     return (result?.count || 0) > 0;
 }
 
+// ═══════════════════════════════════════════
+// REFERRAL FUNCTIONS
+// ═══════════════════════════════════════════
+
+/**
+ * Generate unique referral code for user
+ */
+function generateReferralCode(userId) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `${code}${String(userId).slice(-4)}`;
+}
+
+/**
+ * Get or create referral code for user
+ */
+function getOrCreateReferralCode(userId) {
+    let refCode = prepare('SELECT * FROM referral_codes WHERE user_id = ?').get(String(userId));
+    
+    if (!refCode) {
+        const code = generateReferralCode(userId);
+        prepare('INSERT INTO referral_codes (user_id, code) VALUES (?, ?)').run(String(userId), code);
+        refCode = prepare('SELECT * FROM referral_codes WHERE user_id = ?').get(String(userId));
+    }
+    
+    return refCode;
+}
+
+/**
+ * Get referral code info by code
+ */
+function getReferralByCode(code) {
+    return prepare('SELECT * FROM referral_codes WHERE code = ?').get(code);
+}
+
+/**
+ * Check if user was already referred by someone
+ */
+function isUserReferred(userId) {
+    const ref = prepare('SELECT * FROM referrals WHERE referred_id = ?').get(String(userId));
+    return !!ref;
+}
+
+/**
+ * Create referral relationship
+ * Returns: { success: boolean, message: string }
+ */
+function createReferral(referrerId, referredId) {
+    // Can't refer yourself
+    if (String(referrerId) === String(referredId)) {
+        return { success: false, message: 'Tidak bisa referral diri sendiri' };
+    }
+    
+    // Check if already referred
+    if (isUserReferred(referredId)) {
+        return { success: false, message: 'Anda sudah terdaftar melalui referral lain' };
+    }
+    
+    // Check referrer exists
+    const referrer = getUser(referrerId);
+    if (!referrer) {
+        return { success: false, message: 'Kode referral tidak valid' };
+    }
+    
+    try {
+        prepare('INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)')
+            .run(String(referrerId), String(referredId));
+        
+        // Update referrer stats
+        prepare('UPDATE referral_codes SET total_referrals = total_referrals + 1 WHERE user_id = ?')
+            .run(String(referrerId));
+        
+        return { success: true, message: 'Berhasil terdaftar dengan referral' };
+    } catch (e) {
+        return { success: false, message: 'Gagal membuat referral: ' + e.message };
+    }
+}
+
+/**
+ * Get referral stats for user
+ */
+function getReferralStats(userId) {
+    const refCode = getOrCreateReferralCode(userId);
+    
+    const totalReferred = prepare(`
+        SELECT COUNT(*) as count FROM referrals WHERE referrer_id = ?
+    `).get(String(userId))?.count || 0;
+    
+    const pendingBonus = prepare(`
+        SELECT COUNT(*) as count FROM referrals 
+        WHERE referrer_id = ? AND bonus_claimed = 0
+    `).get(String(userId))?.count || 0;
+    
+    const totalBonusEarned = refCode?.total_bonus_earned || 0;
+    
+    return {
+        code: refCode?.code || '',
+        totalReferred,
+        pendingBonus,
+        totalBonusEarned
+    };
+}
+
+/**
+ * Process referral bonus when deposit is approved
+ * Gives 20 tokens to referrer when referred user deposits >= 100 tokens
+ */
+function processReferralBonus(referredUserId, depositAmount) {
+    const BONUS_AMOUNT = 20;
+    const MIN_DEPOSIT_FOR_BONUS = 100;
+    
+    // Check if this user was referred and bonus not claimed yet
+    const referral = prepare(`
+        SELECT * FROM referrals 
+        WHERE referred_id = ? AND bonus_claimed = 0
+    `).get(String(referredUserId));
+    
+    if (!referral) return null;
+    
+    // Check if deposit meets minimum
+    if (depositAmount < MIN_DEPOSIT_FOR_BONUS) return null;
+    
+    // Give bonus to referrer
+    updateTokenBalance(referral.referrer_id, BONUS_AMOUNT);
+    
+    // Mark bonus as claimed
+    prepare(`
+        UPDATE referrals 
+        SET bonus_claimed = 1, bonus_amount = ?, bonus_claimed_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `).run(BONUS_AMOUNT, referral.id);
+    
+    // Update referrer stats
+    prepare(`
+        UPDATE referral_codes 
+        SET total_bonus_earned = total_bonus_earned + ? 
+        WHERE user_id = ?
+    `).run(BONUS_AMOUNT, referral.referrer_id);
+    
+    // Create transaction record for referrer
+    createTransaction(referral.referrer_id, 'referral_bonus', BONUS_AMOUNT, 
+        `Bonus referral dari user ${referredUserId}`, null, 'success');
+    
+    return {
+        referrerId: referral.referrer_id,
+        bonusAmount: BONUS_AMOUNT
+    };
+}
+
+/**
+ * Get referrer info for a user (who invited them)
+ */
+function getReferrer(userId) {
+    const ref = prepare('SELECT * FROM referrals WHERE referred_id = ?').get(String(userId));
+    if (!ref) return null;
+    
+    const referrer = getUser(ref.referrer_id);
+    return referrer;
+}
+
+/**
+ * Get list of users referred by someone
+ */
+function getReferredUsers(userId, limit = 10) {
+    return prepare(`
+        SELECT r.*, u.username, u.first_name, u.token_balance
+        FROM referrals r
+        LEFT JOIN users u ON r.referred_id = u.user_id
+        WHERE r.referrer_id = ?
+        ORDER BY r.created_at DESC
+        LIMIT ?
+    `).all(String(userId), limit);
+}
+
 module.exports = {
     initialize,
     getUser,
@@ -485,5 +697,14 @@ module.exports = {
     getStats,
     getApiStats,
     getCachedApiResponse,
-    hasCachedResponse
+    hasCachedResponse,
+    // Referral functions
+    getOrCreateReferralCode,
+    getReferralByCode,
+    isUserReferred,
+    createReferral,
+    getReferralStats,
+    processReferralBonus,
+    getReferrer,
+    getReferredUsers
 };

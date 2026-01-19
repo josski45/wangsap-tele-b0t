@@ -40,19 +40,54 @@ setInterval(() => {
 
 const userCommands = {
     /**
-     * Command: /start
+     * Command: /start [ref_CODE]
+     * Handle normal start and referral deep links
      */
-    async start(bot, msg) {
+    async start(bot, msg, args) {
         const userId = msg.from.id;
         const firstName = msg.from.first_name || 'User';
         const username = msg.from.username || null;
         
         if (!checkCooldown(userId, 'start', 5000)) return;
         
+        // Check if this is a referral start
+        let referralText = '';
+        if (args && args.length > 0 && args[0].startsWith('ref_')) {
+            const refCode = args[0].replace('ref_', '');
+            
+            // Find referrer by code
+            const refData = db.getReferralByCode(refCode);
+            
+            if (refData) {
+                // Check if user is already referred
+                if (db.isUserReferred(userId)) {
+                    // Already registered through referral
+                    await bot.sendMessage(msg.chat.id, formatter.referralAlreadyRegisteredMessage(), { 
+                        parse_mode: 'HTML' 
+                    });
+                    return;
+                }
+                
+                // Create user first if not exists
+                db.getOrCreateUser(userId, username, firstName);
+                
+                // Create referral relationship
+                const result = db.createReferral(refData.user_id, userId);
+                
+                if (result.success) {
+                    const referrer = db.getUser(refData.user_id);
+                    const referrerName = referrer?.username ? `@${referrer.username}` : (referrer?.first_name || 'User');
+                    referralText = formatter.referralWelcomeMessage(referrerName);
+                    console.log(`✅ Referral created: ${refData.user_id} -> ${userId}`);
+                }
+            }
+        }
+        
         const user = db.getOrCreateUser(userId, username, firstName);
         const todayChecks = db.getTodayCheckCount(userId);
         
-        const text = formatter.welcomeMessage(firstName, user.token_balance, todayChecks);
+        let text = formatter.welcomeMessage(firstName, user.token_balance, todayChecks);
+        text += referralText;
         
         await bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML' });
     },
@@ -1081,6 +1116,71 @@ const userCommands = {
         }
 
         await bot.sendMessage(msg.chat.id, resultText, { 
+            parse_mode: 'HTML',
+            reply_to_message_id: msg.message_id 
+        });
+    },
+
+    /**
+     * Command: /ref atau /reff - Get referral link
+     */
+    async ref(bot, msg) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (!checkCooldown(userId, 'ref', 3000)) return;
+        
+        db.getOrCreateUser(userId, username, firstName);
+        
+        const refCode = db.getOrCreateReferralCode(userId);
+        const botInfo = await bot.getMe();
+        const text = formatter.referralMessage(refCode.code, botInfo.username);
+        
+        await bot.sendMessage(msg.chat.id, text, { 
+            parse_mode: 'HTML',
+            reply_to_message_id: msg.message_id 
+        });
+    },
+
+    async reff(bot, msg) {
+        return this.ref(bot, msg);
+    },
+
+    async referral(bot, msg) {
+        return this.ref(bot, msg);
+    },
+
+    /**
+     * Command: /myref - Referral statistics
+     */
+    async myref(bot, msg) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (!checkCooldown(userId, 'myref', 3000)) return;
+        
+        db.getOrCreateUser(userId, username, firstName);
+        
+        const stats = db.getReferralStats(userId);
+        const botInfo = await bot.getMe();
+        const text = formatter.referralStatsMessage(stats, botInfo.username);
+        
+        // Get list of referred users
+        const referredUsers = db.getReferredUsers(userId, 5);
+        let listText = '';
+        
+        if (referredUsers.length > 0) {
+            listText = '\n\n👥 <b>Referral Terbaru:</b>';
+            referredUsers.forEach((r, i) => {
+                const name = r.username ? `@${r.username}` : (r.first_name || 'User');
+                const bonusStatus = r.bonus_claimed ? '✅' : '⏳';
+                listText += `\n${i + 1}. ${name} ${bonusStatus}`;
+            });
+        }
+        
+        await bot.sendMessage(msg.chat.id, text + listText, { 
             parse_mode: 'HTML',
             reply_to_message_id: msg.message_id 
         });
