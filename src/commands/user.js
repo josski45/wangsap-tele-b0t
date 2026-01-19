@@ -189,9 +189,22 @@ const userCommands = {
 
         db.deductTokens(userId, checkCost);
 
-        const result = await apiService.checkNIK(nik);
+        let result = await apiService.checkNIK(nik);
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
+
+        // If API fails, try to get from cache
+        if (!result.success) {
+            const cached = db.getCachedApiResponse('ceknik', nik);
+            if (cached && cached.response_data) {
+                console.log(`📦 Using cached data for NIK: ${nik}`);
+                result = {
+                    success: true,
+                    data: cached.response_data,
+                    fromCache: true
+                };
+            }
+        }
 
         if (!result.success) {
             if (result.refund) {
@@ -211,10 +224,15 @@ const userCommands = {
             return;
         }
 
-        db.updateApiRequest(requestId, 'success', 'Data ditemukan', null, null, result.data);
-        db.createTransaction(userId, 'check', checkCost, `Cek NIK berhasil`, nik, 'success');
+        if (!result.fromCache) {
+            db.updateApiRequest(requestId, 'success', 'Data ditemukan', null, null, result.data);
+        }
+        db.createTransaction(userId, 'check', checkCost, `Cek NIK berhasil${result.fromCache ? ' (cache)' : ''}`, nik, 'success');
 
-        const text = formatter.nikResultMessage(result.data, checkCost, requestId, remainingToken);
+        let text = formatter.nikResultMessage(result.data, checkCost, requestId, remainingToken);
+        if (result.fromCache) {
+            text = `📦 <i>Data dari SIGMABOY</i>\n\n` + text;
+        }
         await bot.editMessageText(text, {
             chat_id: msg.chat.id,
             message_id: processingMsg.message_id,
@@ -277,9 +295,23 @@ const userCommands = {
 
         db.deductTokens(userId, namaCost);
 
-        const result = await apiService.searchByName(namaQuery);
+        let result = await apiService.searchByName(namaQuery);
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
+
+        // If API fails, try to get from cache
+        if (!result.success) {
+            const cached = db.getCachedApiResponse('nama', namaQuery);
+            if (cached && cached.response_data) {
+                console.log(`📦 Using cached data for nama: ${namaQuery}`);
+                result = {
+                    success: true,
+                    data: cached.response_data,
+                    searchName: namaQuery,
+                    fromCache: true
+                };
+            }
+        }
 
         if (!result.success) {
             if (result.refund) {
@@ -296,16 +328,23 @@ const userCommands = {
         }
 
         const totalData = result.data?.total_data || result.data?.data?.length || 0;
-        db.updateApiRequest(requestId, 'success', `${totalData} data`, null, null, result.data);
-        db.createTransaction(userId, 'check', namaCost, `Cari nama: ${namaQuery}`, null, 'success');
+        
+        // Don't save to DB if from cache (already exists)
+        if (!result.fromCache) {
+            db.updateApiRequest(requestId, 'success', `${totalData} data`, null, null, result.data);
+        }
+        db.createTransaction(userId, 'check', namaCost, `Cari nama: ${namaQuery}${result.fromCache ? ' (cache)' : ''}`, null, 'success');
 
         // Generate file txt
         const dataList = result.data?.data || [];
         let fileContent = `==========================================\n`;
-        fileContent += `HASIL PENCARIAN NAMA: ${result.searchName}\n`;
+        fileContent += `HASIL PENCARIAN NAMA: ${result.searchName || namaQuery}\n`;
         fileContent += `Total Data: ${totalData}\n`;
         fileContent += `Request ID: ${requestId}\n`;
         fileContent += `Bot: ${config.botName}\n`;
+        if (result.fromCache) {
+            fileContent += `Source: CACHE (data tersimpan sebelumnya)\n`;
+        }
         fileContent += `==========================================\n\n`;
 
         if (dataList.length > 0) {
@@ -325,19 +364,39 @@ const userCommands = {
         fileContent += `\nGenerate Date: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
 
         const fileName = `HASIL_${namaQuery.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}_${requestId}.txt`;
-        const captionText = formatter.namaResultMessage(result.data, result.searchName, namaCost, requestId, remainingToken);
+        let captionText = formatter.namaResultMessage(result.data, result.searchName || namaQuery, namaCost, requestId, remainingToken);
+        
+        // Add cache indicator to caption
+        if (result.fromCache) {
+            captionText = `📦 <i>Data dari SIGMABOY</i>\n\n` + captionText;
+        }
 
         // Delete processing message
-        await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
+        try {
+            await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
+        } catch (e) {
+            console.error('Failed to delete processing msg:', e.message);
+        }
 
-        // Send document
-        await bot.sendDocument(msg.chat.id, Buffer.from(fileContent, 'utf-8'), {
-            filename: fileName,
-            caption: captionText,
-            parse_mode: 'HTML'
-        }, {
-            reply_to_message_id: msg.message_id
-        });
+        // Send document - Fix: use correct sendDocument format for node-telegram-bot-api
+        try {
+            const fileBuffer = Buffer.from(fileContent, 'utf-8');
+            await bot.sendDocument(msg.chat.id, fileBuffer, {
+                caption: captionText,
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            }, {
+                filename: fileName,
+                contentType: 'text/plain'
+            });
+        } catch (docError) {
+            console.error('Error sending document:', docError.message);
+            // Fallback: send as text message
+            await bot.sendMessage(msg.chat.id, captionText + `\n\n<i>⚠️ Gagal membuat file, data ditampilkan di atas</i>`, {
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            });
+        }
     },
 
     /**
@@ -396,9 +455,23 @@ const userCommands = {
 
         db.deductTokens(userId, kkCost);
 
-        const result = await apiService.checkKK(kkNumber);
+        let result = await apiService.checkKK(kkNumber);
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
+
+        // If API fails, try to get from cache
+        if (!result.success) {
+            const cached = db.getCachedApiResponse('kk', kkNumber);
+            if (cached && cached.response_data) {
+                console.log(`📦 Using cached data for KK: ${kkNumber}`);
+                result = {
+                    success: true,
+                    data: cached.response_data.members || cached.response_data,
+                    nkk: cached.response_data.nkk || kkNumber,
+                    fromCache: true
+                };
+            }
+        }
 
         if (!result.success) {
             if (result.refund) {
@@ -414,10 +487,15 @@ const userCommands = {
             return;
         }
 
-        db.updateApiRequest(requestId, 'success', `${result.data?.length || 0} anggota`, null, null, { members: result.data, nkk: result.nkk });
-        db.createTransaction(userId, 'check', kkCost, `Cek KK berhasil`, kkNumber, 'success');
+        if (!result.fromCache) {
+            db.updateApiRequest(requestId, 'success', `${result.data?.length || 0} anggota`, null, null, { members: result.data, nkk: result.nkk });
+        }
+        db.createTransaction(userId, 'check', kkCost, `Cek KK berhasil${result.fromCache ? ' (cache)' : ''}`, kkNumber, 'success');
 
-        const text = formatter.kkResultMessage(result.data, result.nkk, kkCost, requestId, remainingToken);
+        let text = formatter.kkResultMessage(result.data, result.nkk, kkCost, requestId, remainingToken);
+        if (result.fromCache) {
+            text = `📦 <i>Data dari SIGMABOY</i>\n\n` + text;
+        }
         await bot.editMessageText(text, {
             chat_id: msg.chat.id,
             message_id: processingMsg.message_id,
@@ -633,9 +711,22 @@ const userCommands = {
 
         db.deductTokens(userId, edabuCost);
 
-        const result = await apiService.checkEdabu(nik);
+        let result = await apiService.checkEdabu(nik);
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
+
+        // If API fails, try to get from cache
+        if (!result.success) {
+            const cached = db.getCachedApiResponse('edabu', nik);
+            if (cached && cached.response_data) {
+                console.log(`📦 Using cached data for EDABU: ${nik}`);
+                result = {
+                    success: true,
+                    data: cached.response_data,
+                    fromCache: true
+                };
+            }
+        }
 
         if (!result.success) {
             if (result.refund) {
@@ -651,15 +742,17 @@ const userCommands = {
             return;
         }
 
-        db.updateApiRequest(requestId, 'success', 'Data BPJS ditemukan', null, null, result.data);
-        db.createTransaction(userId, 'check', edabuCost, `Cek BPJS berhasil`, nik, 'success');
+        if (!result.fromCache) {
+            db.updateApiRequest(requestId, 'success', 'Data BPJS ditemukan', null, null, result.data);
+        }
+        db.createTransaction(userId, 'check', edabuCost, `Cek BPJS berhasil${result.fromCache ? ' (cache)' : ''}`, nik, 'success');
 
-        // Fetch alamat untuk setiap anggota
+        // Fetch alamat untuk setiap anggota (skip if from cache to save API calls)
         const anggota = result.data?.anggota || [];
         const nikList = anggota.map(a => a.nik).filter(n => n);
         let nikAddresses = {};
         
-        if (nikList.length > 0) {
+        if (nikList.length > 0 && !result.fromCache) {
             try {
                 nikAddresses = await apiService.fetchMultipleNIKAddresses(nikList);
             } catch (e) {
@@ -667,7 +760,10 @@ const userCommands = {
             }
         }
 
-        const text = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken, nikAddresses);
+        let text = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken, nikAddresses);
+        if (result.fromCache) {
+            text = `📦 <i>Data dari SIGMABOY</i>\n\n` + text;
+        }
         await bot.editMessageText(text, {
             chat_id: msg.chat.id,
             message_id: processingMsg.message_id,

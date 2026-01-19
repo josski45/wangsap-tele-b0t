@@ -417,6 +417,46 @@ function getApiStats() {
     return { today, total };
 }
 
+// ═══════════════════════════════════════════
+// CACHE FUNCTIONS - Lookup cached API responses
+// ═══════════════════════════════════════════
+
+/**
+ * Get cached API response by query and command
+ * Used as fallback when API fails
+ */
+function getCachedApiResponse(command, query, maxAgeDays = 30) {
+    const request = prepare(`
+        SELECT * FROM api_requests 
+        WHERE command = ? AND query = ? AND status = 'success' AND response_data IS NOT NULL
+        AND created_at >= datetime('now', '-' || ? || ' days')
+        ORDER BY created_at DESC 
+        LIMIT 1
+    `).get(command, query, maxAgeDays);
+    
+    if (request && request.response_data) {
+        try {
+            request.response_data = JSON.parse(request.response_data);
+            request.fromCache = true;
+            return request;
+        } catch (e) {
+            return null;
+        }
+    }
+    return null;
+}
+
+/**
+ * Check if query exists in cache
+ */
+function hasCachedResponse(command, query) {
+    const result = prepare(`
+        SELECT COUNT(*) as count FROM api_requests 
+        WHERE command = ? AND query = ? AND status = 'success' AND response_data IS NOT NULL
+    `).get(command, query);
+    return (result?.count || 0) > 0;
+}
+
 module.exports = {
     initialize,
     getUser,
@@ -443,5 +483,7 @@ module.exports = {
     setSetting,
     getAllSettings,
     getStats,
-    getApiStats
+    getApiStats,
+    getCachedApiResponse,
+    hasCachedResponse
 };
