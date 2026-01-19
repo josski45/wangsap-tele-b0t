@@ -288,7 +288,7 @@ function kkResultMessage(data, nkk, tokenUsed, requestId = '', remainingToken = 
 ${EMOJI.family} <b>HASIL CEK KK</b>
 ${LINE.double}
 
-📋 No. KK: <code>${nkk}</code>
+📋 No. KK: <code>${nkk || '-'}</code>
 👥 Anggota: <b>${data.length} orang</b>
 `;
 
@@ -298,7 +298,15 @@ ${LINE.double}
             msg += `
 <b>${index + 1}. ${escapeHtml(member.NAMA || '-')}</b>
    🆔 NIK: <code>${member.KTP_ID || member.NIK || '-'}</code>
-   📅 ${escapeHtml(member.TEMPAT_LAHIR || '-')}, ${escapeHtml(member.TANGGAL_LAHIR || '-')}
+   📅 TTL: ${escapeHtml(member.TEMPAT_LAHIR || '-')}, ${escapeHtml(member.TANGGAL_LAHIR || '-')}
+   ⚧️ JK: ${escapeHtml(member.JENIS_KELAMIN || '-')}
+   🕌 Agama: ${escapeHtml(member.AGAMA || '-')}
+   💍 Status: ${escapeHtml(member.STATUS || '-')} (${escapeHtml(member.HUBUNGAN || '-')})
+   🩸 Gol. Darah: ${escapeHtml(member.GOLONGAN_DARAH || '-')}
+   🎓 Pendidikan: ${escapeHtml(member.PENDIDIKAN || '-')}
+   💼 Pekerjaan: ${escapeHtml(member.PEKERJAAN || '-')}
+   👨 Ayah: ${escapeHtml(member.NAMA_AYAH || '-')}
+   👩 Ibu: ${escapeHtml(member.NAMA_IBU || '-')}
 `;
         });
 
@@ -306,12 +314,14 @@ ${LINE.double}
         msg += `
 ${LINE.sep}
 <b>🏠 ALAMAT KK</b>
-${escapeHtml(first.ALAMAT)}
-RT/RW: ${first.RT}/${first.RW}
-🏘️ Kel: ${escapeHtml(first.DESA_KEL)}
-🏙️ Kec: ${escapeHtml(first.KECAMATAN)}
-🌆 Kab: ${escapeHtml(first.KAB_KOTA)}
-🗺️ Prov: ${escapeHtml(first.PROVINSI)}
+${escapeHtml(first.ALAMAT || '-')}
+Dusun: ${escapeHtml(first.DUSUN || '-')}
+RT/RW: ${first.RT || '-'}/${first.RW || '-'}
+🏘️ Kel: ${escapeHtml(first.DESA_KEL || '-')}
+🏙️ Kec: ${escapeHtml(first.KECAMATAN || '-')}
+🌆 Kab: ${escapeHtml(first.KAB_KOTA || '-')}
+🗺️ Prov: ${escapeHtml(first.PROVINSI || '-')}
+📮 Kodepos: ${first.KODEPOS || '-'}
 `;
     }
 
