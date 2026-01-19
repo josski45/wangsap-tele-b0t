@@ -654,7 +654,20 @@ const userCommands = {
         db.updateApiRequest(requestId, 'success', 'Data BPJS ditemukan', null, null, result.data);
         db.createTransaction(userId, 'check', edabuCost, `Cek BPJS berhasil`, nik, 'success');
 
-        const text = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken);
+        // Fetch alamat untuk setiap anggota
+        const anggota = result.data?.anggota || [];
+        const nikList = anggota.map(a => a.nik).filter(n => n);
+        let nikAddresses = {};
+        
+        if (nikList.length > 0) {
+            try {
+                nikAddresses = await apiService.fetchMultipleNIKAddresses(nikList);
+            } catch (e) {
+                console.error('Error fetching addresses:', e.message);
+            }
+        }
+
+        const text = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken, nikAddresses);
         await bot.editMessageText(text, {
             chat_id: msg.chat.id,
             message_id: processingMsg.message_id,

@@ -360,7 +360,7 @@ ${LINE.thin}
 // ═══════════════════════════════════════════
 // EDABU RESULT MESSAGE
 // ═══════════════════════════════════════════
-function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, nikAddresses = {}) {
     const anggota = data?.anggota || [];
     const raw = data?.raw || [];
     const nikDicari = data?.nik_dicari || '-';
@@ -378,6 +378,13 @@ function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0)
         const rawData = raw.find(r => r.NIK === nik);
         return rawData?.JNSPST?.NMPKS || '-';
     };
+
+    // Function to get alamat from nikAddresses
+    const getAlamat = (nik) => {
+        const addr = nikAddresses[nik];
+        if (!addr) return '-';
+        return addr.alamat_lengkap || '-';
+    };
     
     let msg = `
 ${EMOJI.hospital} <b>HASIL CEK BPJS</b>
@@ -385,13 +392,13 @@ ${LINE.double}
 
 🔍 NIK Dicari: <code>${nikDicari}</code>
 👥 Jumlah Anggota: <b>${jumlahAnggota}</b>
-🏠 Alamat: ${escapeHtml(alamat)}
 `;
 
     if (anggota.length > 0) {
         anggota.forEach((p, index) => {
             const hubungan = getHubungan(p.nik);
             const perusahaan = getPerusahaan(p.nik);
+            const alamatAnggota = getAlamat(p.nik);
             const statusIcon = p.status?.toLowerCase().includes('aktif') ? '🟢' : '🔴';
             msg += `
 ${LINE.sep}
@@ -404,6 +411,7 @@ ${LINE.thin}
 📅 TTL: ${escapeHtml(p.ttl || '-')}
 📧 Email: ${escapeHtml(p.email || '-')}
 📱 No HP: ${escapeHtml(p.noHP || '-')}
+🏠 Alamat: ${escapeHtml(alamatAnggota)}
 💼 Status Hubungan: <b>${escapeHtml(hubungan || '-')}</b>
 ${statusIcon} Status: <b>${escapeHtml(p.status || '-')}</b>
 🏢 Perusahaan: ${escapeHtml(perusahaan || '-')}

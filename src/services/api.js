@@ -293,6 +293,74 @@ class APIService {
     }
 
     /**
+     * FETCH NIK ADDRESS (untuk enrichment data EDABU)
+     * Mengambil alamat lengkap berdasarkan NIK
+     */
+    async fetchNIKAddress(nik) {
+        try {
+            const apiKey = this.getApiKey('nik');
+            const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}`;
+            
+            const response = await axios.get(url, {
+                timeout: 10000, // timeout lebih pendek untuk enrichment
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+
+            const data = response.data;
+
+            if (data.error === true || data.error === 'true' || !data.data) {
+                return null;
+            }
+
+            const d = data.data;
+            // Format alamat lengkap
+            const alamatParts = [
+                d.alamat,
+                d.kelurahan ? `Kel. ${d.kelurahan}` : null,
+                d.kecamatan ? `Kec. ${d.kecamatan}` : null,
+                d.kabupaten,
+                d.provinsi
+            ].filter(p => p && p !== '-' && p.trim() !== '');
+
+            return {
+                alamat: d.alamat || '-',
+                kelurahan: d.kelurahan || '-',
+                kecamatan: d.kecamatan || '-',
+                kabupaten: d.kabupaten || '-',
+                provinsi: d.provinsi || '-',
+                alamat_lengkap: alamatParts.join(', ') || '-'
+            };
+
+        } catch (error) {
+            console.error('Fetch NIK Address Error:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * FETCH MULTIPLE NIK ADDRESSES (batch)
+     */
+    async fetchMultipleNIKAddresses(nikList) {
+        const results = {};
+        // Fetch secara parallel dengan limit
+        const batchSize = 5;
+        for (let i = 0; i < nikList.length; i += batchSize) {
+            const batch = nikList.slice(i, i + batchSize);
+            const promises = batch.map(async (nik) => {
+                const address = await this.fetchNIKAddress(nik);
+                return { nik, address };
+            });
+            const batchResults = await Promise.all(promises);
+            batchResults.forEach(r => {
+                if (r.address) results[r.nik] = r.address;
+            });
+        }
+        return results;
+    }
+
+    /**
      * Handle error
      */
     handleError(error) {
