@@ -384,7 +384,7 @@ const ownerCommands = {
     async setcost(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: check, nama, kk, foto, edabu, getdata\nContoh: <code>/setcost check 2</code>`,
+                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: check, nama, kk, foto, edabu, nopol, getdata\nContoh: <code>/setcost check 2</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -393,7 +393,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'getdata'];
+        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'nopol', 'getdata'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -424,7 +424,7 @@ const ownerCommands = {
     async setapi(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu`,
+                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu, nopol`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -433,7 +433,7 @@ const ownerCommands = {
         const type = args[0].toLowerCase();
         const key = args[1];
         
-        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu'];
+        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu', 'nopol'];
         if (!validTypes.includes(type)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Type tidak valid. Pilih: ${validTypes.join(', ')}`,
@@ -462,6 +462,7 @@ const ownerCommands = {
         const kkCost = parseInt(settings.kk_cost) || config.kkCost;
         const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
         const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+        const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
         const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
         
         const mtCeknik = settings.mt_ceknik === 'true' ? '🔴 ON' : '🟢 OFF';
@@ -469,6 +470,7 @@ const ownerCommands = {
         const mtKk = settings.mt_kk === 'true' ? '🔴 ON' : '🟢 OFF';
         const mtFoto = settings.mt_foto === 'true' ? '🔴 ON' : '🟢 OFF';
         const mtEdabu = settings.mt_edabu === 'true' ? '🔴 ON' : '🟢 OFF';
+        const mtNopol = settings.mt_nopol === 'true' ? '🔴 ON' : '🟢 OFF';
 
         let text = `<b>╔════════════════╗</b>\n<b>║</b>  ⚙️ <b>SETTINGS</b>\n<b>╚════════════════╝</b>\n`;
         
@@ -481,6 +483,7 @@ const ownerCommands = {
         text += `kk: ${kkCost}t\n`;
         text += `foto: ${fotoCost}t\n`;
         text += `edabu: ${edabuCost}t\n`;
+        text += `nopol: ${nopolCost}t\n`;
         text += `getdata: ${getdataCost}t\n`;
         
         text += '\n<b>━━━ 🛠️ MAINTENANCE ━━━</b>\n';
@@ -489,6 +492,7 @@ const ownerCommands = {
         text += `kk: ${mtKk}\n`;
         text += `foto: ${mtFoto}\n`;
         text += `edabu: ${mtEdabu}\n`;
+        text += `nopol: ${mtNopol}\n`;
 
         await bot.sendMessage(msg.chat.id, text, { 
             parse_mode: 'HTML',

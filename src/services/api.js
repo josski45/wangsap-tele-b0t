@@ -409,14 +409,25 @@ class APIService {
 
     /**
      * CEK NOPOL (Plat Nomor Kendaraan)
+     * /nopol <plat> | /nopol mesin <no_mesin> | /nopol rangka <no_rangka> | /nopol nik <nik>
+     * @param {string} query - Nilai yang dicari (plat, nomor mesin, nomor rangka, atau NIK)
+     * @param {string} type - Tipe pencarian: 'nopol' (default), 'mesin', 'rangka', 'nik'
      */
-    async checkNopol(nopol) {
+    async checkNopol(query, type = 'nopol') {
         try {
             const apiKey = this.getApiKey('nopol');
             const url = `${this.nopolBaseUrl}/check-nopol`;
             
+            // Mapping tipe ke label
+            const typeLabels = {
+                'nopol': 'Plat Nomor',
+                'mesin': 'Nomor Mesin',
+                'rangka': 'Nomor Rangka',
+                'nik': 'NIK Pemilik'
+            };
+            
             const response = await axios.post(url, 
-                `api_key=${apiKey}&nopol=${encodeURIComponent(nopol)}`,
+                `api_key=${apiKey}&${type}=${encodeURIComponent(query)}`,
                 {
                     timeout: 30000,
                     headers: {
@@ -432,15 +443,17 @@ class APIService {
             if (data.status !== 'success' || !data.data || data.data.length === 0) {
                 return {
                     success: false,
-                    error: data.message || 'Data tidak ditemukan untuk plat nomor tersebut',
-                    refund: true
+                    error: data.message || `Data tidak ditemukan untuk ${typeLabels[type] || type} tersebut`,
+                    refund: true,
+                    searchType: type
                 };
             }
 
             return {
                 success: true,
                 data: data.data[0],
-                refund: false
+                refund: false,
+                searchType: type
             };
 
         } catch (error) {
