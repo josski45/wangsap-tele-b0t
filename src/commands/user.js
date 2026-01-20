@@ -364,6 +364,19 @@ const userCommands = {
 
         const totalData = result.data?.total_data || result.data?.data?.length || 0;
         
+        // Double check: jika totalData = 0, refund token
+        if (totalData === 0) {
+            db.refundTokens(userId, namaCost);
+            db.updateApiRequest(requestId, 'failed', null, null, 'Data tidak ditemukan (0 hasil)');
+            db.createTransaction(userId, 'check', namaCost, `Cari nama gagal (0 data)`, namaQuery, 'failed');
+            
+            await bot.editMessageText(
+                `❌ <b>Tidak Ada Data</b>\n\n🔍 Query: <b>${formatter.escapeHtml(namaQuery)}</b>\n📊 Total: <b>0 data</b>\n\n🪙 Token dikembalikan: <b>${namaCost} token</b>\n🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+        
         // Don't save to DB if from cache (already exists)
         if (!result.fromCache) {
             db.updateApiRequest(requestId, 'success', `${totalData} data`, null, null, result.data);

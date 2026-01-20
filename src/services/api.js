@@ -136,8 +136,9 @@ class APIService {
                     };
                 }
 
-                // Cek jika data array kosong
-                if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
+                // Cek jika data kosong (bisa berbentuk array langsung atau object dengan field data)
+                const totalData = data.data?.total_data || data.data?.data?.length || (Array.isArray(data.data) ? data.data.length : 0);
+                if (!data.data || totalData === 0) {
                     return {
                         success: false,
                         error: 'Tidak ada data yang cocok dengan nama tersebut',
