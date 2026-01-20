@@ -89,6 +89,8 @@ function menuMessage() {
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+    const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
+    const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
 
     return `
 ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
@@ -102,6 +104,8 @@ ${LINE.sep}
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
 🚗 /nopol • <code>${nopolCost} token</code>
+📱 /regnik • <code>${regnikCost} token</code>
+📱 /regsim • <code>${regsimCost} token</code>
 
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
@@ -129,6 +133,8 @@ function helpMessage() {
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+    const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
+    const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
     const riwayatDays = parseInt(settings.riwayat_days) || config.riwayatDays;
     const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
@@ -166,6 +172,14 @@ Harga: ${formatRupiah(tokenPrice)}/token
 🚗 <b>/nopol</b> &lt;PLAT&gt;
    Biaya: <code>${nopolCost} token</code>
    Data: Info Kendaraan
+
+📱 <b>/regnik</b> &lt;NIK&gt;
+   Biaya: <code>${regnikCost} token</code>
+   Data: Nomor HP dari NIK
+
+📱 <b>/regsim</b> &lt;HP&gt;
+   Biaya: <code>${regsimCost} token</code>
+   Data: NIK dari Nomor HP
 
 📋 <b>/riwayat</b>
    Biaya: <code>GRATIS</code>
@@ -489,6 +503,71 @@ ${LINE.thin}
 🆔 ID: <code>${requestId}</code>
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
+}
+
+// ═══════════════════════════════════════════
+// REGNIK RESULT MESSAGE (NIK -> Nomor HP)
+// ═══════════════════════════════════════════
+function regnikResultMessage(data, nik, tokenUsed, requestId = '', remainingToken = 0) {
+    const regList = data.data || [];
+    const totalData = data.jumlah_data || regList.length;
+    
+    let msg = `
+📱 <b>HASIL CEK REG NIK</b>
+${LINE.double}
+
+🆔 NIK: <code>${nik}</code>
+📊 Total: <b>${totalData} nomor</b>
+
+📋 <b>DAFTAR NOMOR HP</b>
+${LINE.thin}`;
+
+    regList.forEach((item, idx) => {
+        msg += `
+${idx + 1}. 📱 <b>${item.nomor || '-'}</b>
+   📅 ${item.register || '-'}`;
+    });
+
+    msg += `
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+    return msg;
+}
+
+// ═══════════════════════════════════════════
+// REGSIM RESULT MESSAGE (Nomor HP -> NIK)
+// ═══════════════════════════════════════════
+function regsimResultMessage(data, phone, tokenUsed, requestId = '', remainingToken = 0) {
+    const regList = data.data || [];
+    const totalData = data.jumlah_data || regList.length;
+    
+    let msg = `
+📱 <b>HASIL CEK REG SIM</b>
+${LINE.double}
+
+📞 Nomor: <b>${phone}</b>
+📊 Total: <b>${totalData} data</b>
+
+📋 <b>DATA REGISTRASI</b>
+${LINE.thin}`;
+
+    regList.forEach((item, idx) => {
+        msg += `
+${idx + 1}. 🆔 NIK: <code>${item.nik || '-'}</code>
+   📱 ${item.nomor || '-'}
+   📅 ${item.register || '-'}`;
+    });
+
+    msg += `
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+    return msg;
 }
 
 // ═══════════════════════════════════════════
@@ -849,6 +928,8 @@ module.exports = {
     fotoResultMessage,
     edabuResultMessage,
     nopolResultMessage,
+    regnikResultMessage,
+    regsimResultMessage,
     depositRequestMessage,
     supportMessage,
     transactionHistoryMessage,

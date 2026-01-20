@@ -46,6 +46,8 @@ module.exports = {
     fotoCost: parseInt(process.env.FOTO_COST) || 5,
     edabuCost: parseInt(process.env.EDABU_COST) || 3,
     nopolCost: parseInt(process.env.NOPOL_COST) || 3,
+    regnikCost: parseInt(process.env.REGNIK_COST) || 3,
+    regsimCost: parseInt(process.env.REGSIM_COST) || 3,
     riwayatCost: parseFloat(process.env.RIWAYAT_COST) || 0,
     getdataCost: parseFloat(process.env.GETDATA_COST) || 0.5,
     riwayatDays: parseInt(process.env.RIWAYAT_DAYS) || 10,

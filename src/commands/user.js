@@ -932,6 +932,256 @@ const userCommands = {
     },
 
     /**
+     * Command: /regnik <NIK>
+     * Cari nomor HP yang terdaftar dengan NIK (via Starkiller callback)
+     */
+    async regnik(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/regnik &lt;NIK&gt;</code>\nContoh: <code>/regnik 1234567890123456</code>\n\n📋 <i>Mencari nomor HP yang terdaftar dengan NIK</i>\n⚠️ <i>Proses 60-90 detik karena menggunakan callback</i>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const nik = args[0].replace(/\D/g, '');
+
+        if (!isValidNIK(nik)) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>NIK Tidak Valid</b>\n\nNIK harus <b>16 digit angka</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+
+        if (settings.mt_regnik === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>REG NIK</b> sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
+
+        if (user.token_balance < regnikCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${regnikCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'regnik', nik, 'starkiller', regnikCost);
+
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n📱 Mencari nomor HP untuk NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n⚠️ <i>Proses ini memakan waktu 60-90 detik</i>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        db.deductTokens(userId, regnikCost);
+
+        try {
+            const initialResult = await apiService.checkRegNik(nik);
+
+            if (!initialResult.success) {
+                if (initialResult.refund) {
+                    db.refundTokens(userId, regnikCost);
+                }
+                db.updateApiRequest(requestId, 'failed', null, null, initialResult.error);
+                db.createTransaction(userId, 'check', regnikCost, `Cek regnik gagal`, nik, 'failed');
+                
+                await bot.editMessageText(
+                    `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(initialResult.error)}\n\n${initialResult.refund ? `🪙 Token dikembalikan: <b>${regnikCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                    { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                );
+                return;
+            }
+
+            if (initialResult.needCallback) {
+                await bot.editMessageText(
+                    `⏳ <b>Request Dalam Antrian...</b>\n\n📱 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n🔄 <i>Menunggu response dari server... (max 90 detik)</i>`,
+                    { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                );
+
+                const finalResult = await apiService.pollRegCallback(initialResult.callbackUrl, 30, 3000);
+
+                const updatedUser = db.getUser(userId);
+                const remainingToken = updatedUser?.token_balance || 0;
+
+                if (!finalResult.success) {
+                    if (finalResult.refund) {
+                        db.refundTokens(userId, regnikCost);
+                    }
+                    db.updateApiRequest(requestId, 'failed', null, null, finalResult.error);
+                    db.createTransaction(userId, 'check', regnikCost, `Cek regnik timeout`, nik, 'failed');
+                    
+                    await bot.editMessageText(
+                        `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(finalResult.error)}\n\n${finalResult.refund ? `🪙 Token dikembalikan: <b>${regnikCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                    );
+                    return;
+                }
+
+                db.updateApiRequest(requestId, 'success', `${finalResult.data?.jumlah_data || 0} nomor ditemukan`, null, null, finalResult.data);
+                db.createTransaction(userId, 'check', regnikCost, `Cek regnik berhasil`, nik, 'success');
+
+                const resultText = formatter.regnikResultMessage(finalResult.data, nik, regnikCost, requestId, remainingToken);
+                
+                await bot.editMessageText(resultText, {
+                    chat_id: msg.chat.id,
+                    message_id: processingMsg.message_id,
+                    parse_mode: 'HTML'
+                });
+            }
+
+        } catch (error) {
+            console.error('REGNIK Error:', error);
+            db.refundTokens(userId, regnikCost);
+            db.updateApiRequest(requestId, 'failed', null, null, error.message);
+            
+            await bot.editMessageText(
+                `❌ <b>Error</b>\n\n${formatter.escapeHtml(error.message)}\n\n🪙 Token dikembalikan: <b>${regnikCost} token</b>\n🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+        }
+    },
+
+    /**
+     * Command: /regsim <phone>
+     * Cari NIK yang terdaftar dengan nomor HP (via Starkiller callback)
+     */
+    async regsim(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/regsim &lt;NOMOR_HP&gt;</code>\nContoh: <code>/regsim 081234567890</code>\n\n📋 <i>Mencari NIK yang terdaftar dengan nomor HP</i>\n⚠️ <i>Proses 60-90 detik karena menggunakan callback</i>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Clean phone number
+        let targetPhone = args[0].replace(/[\s\-\+]/g, '');
+        if (targetPhone.startsWith('0')) {
+            targetPhone = '62' + targetPhone.slice(1);
+        }
+
+        if (targetPhone.length < 10 || targetPhone.length > 15 || !/^\d+$/.test(targetPhone)) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Nomor HP Tidak Valid</b>\n\nNomor harus 10-15 digit angka`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+
+        if (settings.mt_regsim === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>REG SIM</b> sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
+
+        if (user.token_balance < regsimCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${regsimCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'regsim', targetPhone, 'starkiller', regsimCost);
+
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n📱 Mencari NIK untuk nomor: <b>${targetPhone}</b>\n🆔 ID: <code>${requestId}</code>\n\n⚠️ <i>Proses ini memakan waktu 60-90 detik</i>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        db.deductTokens(userId, regsimCost);
+
+        try {
+            const initialResult = await apiService.checkRegSim(targetPhone);
+
+            if (!initialResult.success) {
+                if (initialResult.refund) {
+                    db.refundTokens(userId, regsimCost);
+                }
+                db.updateApiRequest(requestId, 'failed', null, null, initialResult.error);
+                db.createTransaction(userId, 'check', regsimCost, `Cek regsim gagal`, targetPhone, 'failed');
+                
+                await bot.editMessageText(
+                    `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(initialResult.error)}\n\n${initialResult.refund ? `🪙 Token dikembalikan: <b>${regsimCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                    { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                );
+                return;
+            }
+
+            if (initialResult.needCallback) {
+                await bot.editMessageText(
+                    `⏳ <b>Request Dalam Antrian...</b>\n\n📱 Nomor: <b>${targetPhone}</b>\n🆔 ID: <code>${requestId}</code>\n\n🔄 <i>Menunggu response dari server... (max 90 detik)</i>`,
+                    { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                );
+
+                const finalResult = await apiService.pollRegCallback(initialResult.callbackUrl, 30, 3000);
+
+                const updatedUser = db.getUser(userId);
+                const remainingToken = updatedUser?.token_balance || 0;
+
+                if (!finalResult.success) {
+                    if (finalResult.refund) {
+                        db.refundTokens(userId, regsimCost);
+                    }
+                    db.updateApiRequest(requestId, 'failed', null, null, finalResult.error);
+                    db.createTransaction(userId, 'check', regsimCost, `Cek regsim timeout`, targetPhone, 'failed');
+                    
+                    await bot.editMessageText(
+                        `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(finalResult.error)}\n\n${finalResult.refund ? `🪙 Token dikembalikan: <b>${regsimCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                    );
+                    return;
+                }
+
+                db.updateApiRequest(requestId, 'success', `${finalResult.data?.jumlah_data || 0} data ditemukan`, null, null, finalResult.data);
+                db.createTransaction(userId, 'check', regsimCost, `Cek regsim berhasil`, targetPhone, 'success');
+
+                const resultText = formatter.regsimResultMessage(finalResult.data, targetPhone, regsimCost, requestId, remainingToken);
+                
+                await bot.editMessageText(resultText, {
+                    chat_id: msg.chat.id,
+                    message_id: processingMsg.message_id,
+                    parse_mode: 'HTML'
+                });
+            }
+
+        } catch (error) {
+            console.error('REGSIM Error:', error);
+            db.refundTokens(userId, regsimCost);
+            db.updateApiRequest(requestId, 'failed', null, null, error.message);
+            
+            await bot.editMessageText(
+                `❌ <b>Error</b>\n\n${formatter.escapeHtml(error.message)}\n\n🪙 Token dikembalikan: <b>${regsimCost} token</b>\n🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+        }
+    },
+
+    /**
      * Command: /deposit <jumlah>
      */
     async deposit(bot, msg, args) {
