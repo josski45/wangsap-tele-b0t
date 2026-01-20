@@ -136,6 +136,15 @@ class APIService {
                     };
                 }
 
+                // Cek jika data array kosong
+                if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
+                    return {
+                        success: false,
+                        error: 'Tidak ada data yang cocok dengan nama tersebut',
+                        refund: true
+                    };
+                }
+
                 return {
                     success: true,
                     data: data.data,
@@ -172,6 +181,15 @@ class APIService {
                     return {
                         success: false,
                         error: data.message || 'Data tidak ditemukan',
+                        refund: true
+                    };
+                }
+
+                // Cek jika data array kosong
+                if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
+                    return {
+                        success: false,
+                        error: 'Data KK tidak ditemukan',
                         refund: true
                     };
                 }
@@ -315,6 +333,16 @@ class APIService {
                 return {
                     success: false,
                     error: data.message || 'Data tidak ditemukan',
+                    refund: true
+                };
+            }
+
+            // Cek jika data kosong
+            if (!data.data || (Array.isArray(data.data) && data.data.length === 0) || 
+                (typeof data.data === 'object' && Object.keys(data.data).length === 0)) {
+                return {
+                    success: false,
+                    error: 'Data EDABU/BPJS tidak ditemukan untuk NIK tersebut',
                     refund: true
                 };
             }
