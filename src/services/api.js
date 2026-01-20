@@ -58,6 +58,8 @@ class APIService {
                 return settings.edabu_api_key || config.edabuApiKey;
             case 'nopol':
                 return settings.nopol_api_key || config.nopolApiKey;
+            case 'nopol_terbangbebas':
+                return settings.nopol_terbangbebas_api_key || config.nopolTerbangbebasApiKey || 'e2a9abec696a229558b8a150602908ce';
             case 'nik':
             default:
                 return settings.api_key || config.apiKey;
@@ -464,42 +466,137 @@ class APIService {
     }
 
     /**
+     * ═══════════════════════════════════════════
      * CEK NOPOL (Plat Nomor / Mesin / Rangka / NIK)
-     * Support: plat nomor, nomor mesin, nomor rangka, NIK
+     * - Jika format NOPOL (plat): Hit terbangbebas dulu, fallback ke .my.id
+     * - Jika NOKA/NOSIN/NIK: Langsung hit .my.id
+     * ═══════════════════════════════════════════
+     */
+    
+    /**
+     * Detect apakah query adalah format plat nomor kendaraan
+     * Format: [Huruf 1-2][Angka 1-4][Huruf 0-3]
+     * Contoh: B1234ABC, BM8589BI, D123X, B1A
+     */
+    isNopolFormat(query) {
+        const nopolRegex = /^[A-Z]{1,2}[0-9]{1,4}[A-Z]{0,3}$/;
+        return nopolRegex.test(query) && query.length >= 2 && query.length <= 9;
+    }
+
+    /**
+     * Hit API terbangbebas.cyou untuk NOPOL
+     */
+    async checkNopolTerbangBebas(query) {
+        try {
+            const apiKey = this.getApiKey('nopol_terbangbebas') || 'e2a9abec696a229558b8a150602908ce';
+            const url = `https://apiv2.terbangbebas.cyou/?apikey=${apiKey}&endpoint=nopol&query=${encodeURIComponent(query)}`;
+            
+            const response = await axios.get(url, {
+                timeout: this.defaultTimeout,
+                headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+
+            const data = response.data;
+
+            if (!data.result || data.result.length === 0) {
+                return {
+                    success: false,
+                    error: data.message || 'Data tidak ditemukan',
+                    refund: true
+                };
+            }
+
+            const result = data.result[0];
+            return {
+                success: true,
+                data: result,
+                source: 'terbangbebas',
+                refund: false
+            };
+
+        } catch (error) {
+            console.error('TerbangBebas NOPOL API Error:', error.message);
+            return {
+                success: false,
+                error: error.message,
+                refund: true
+            };
+        }
+    }
+
+    /**
+     * Hit API siakses.my.id untuk NOPOL/NOKA/NOSIN/NIK
+     */
+    async checkNopolSiakses(query) {
+        try {
+            const apiKey = this.getApiKey('nopol');
+            const url = `${this.nopolBaseUrl}/check-nopol`;
+            
+            const response = await axios.post(url, 
+                `api_key=${apiKey}&nopol=${encodeURIComponent(query)}`,
+                {
+                    timeout: this.defaultTimeout,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                }
+            );
+
+            const data = response.data;
+
+            if (data.status !== 'success' || !data.data || data.data.length === 0) {
+                return {
+                    success: false,
+                    error: data.message || 'Data tidak ditemukan',
+                    refund: true
+                };
+            }
+
+            return {
+                success: true,
+                data: data.data[0],
+                source: 'siakses',
+                refund: false
+            };
+
+        } catch (error) {
+            console.error('Siakses NOPOL API Error:', error.message);
+            return {
+                success: false,
+                error: error.message,
+                refund: true
+            };
+        }
+    }
+
+    /**
+     * Main checkNopol function dengan logic:
+     * - NOPOL format: terbangbebas -> fallback siakses
+     * - NOKA/NOSIN/NIK: langsung siakses
      */
     async checkNopol(query) {
         try {
             return await this.withRetry(async () => {
-                const apiKey = this.getApiKey('nopol');
-                const url = `${this.nopolBaseUrl}/check-nopol`;
-                
-                const response = await axios.post(url, 
-                    `api_key=${apiKey}&nopol=${encodeURIComponent(query)}`,
-                    {
-                        timeout: this.defaultTimeout,
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
+                if (this.isNopolFormat(query)) {
+                    console.log(`🚗 Query "${query}" detected as NOPOL format, trying TerbangBebas first...`);
+                    
+                    const tbResult = await this.checkNopolTerbangBebas(query);
+                    if (tbResult.success) {
+                        console.log(`✅ TerbangBebas success for ${query}`);
+                        return tbResult;
                     }
-                );
-
-                const data = response.data;
-
-                if (data.status !== 'success' || !data.data || data.data.length === 0) {
-                    return {
-                        success: false,
-                        error: data.message || 'Data tidak ditemukan',
-                        refund: true
-                    };
+                    
+                    console.log(`⚠️ TerbangBebas failed, fallback to Siakses for ${query}`);
+                    return await this.checkNopolSiakses(query);
+                } else {
+                    console.log(`🔧 Query "${query}" detected as NOKA/NOSIN/NIK, using Siakses directly...`);
+                    return await this.checkNopolSiakses(query);
                 }
-
-                return {
-                    success: true,
-                    data: data.data[0],
-                    refund: false
-                };
             });
         } catch (error) {
             console.error('NOPOL API Error:', error.message);

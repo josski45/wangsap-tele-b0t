@@ -424,7 +424,7 @@ const ownerCommands = {
     async setapi(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu, nopol`,
+                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu, nopol, nopol_tb`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -433,7 +433,7 @@ const ownerCommands = {
         const type = args[0].toLowerCase();
         const key = args[1];
         
-        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu', 'nopol'];
+        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu', 'nopol', 'nopol_tb'];
         if (!validTypes.includes(type)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Type tidak valid. Pilih: ${validTypes.join(', ')}`,
@@ -442,7 +442,15 @@ const ownerCommands = {
             return;
         }
 
-        const settingKey = type === 'nik' ? 'api_key' : `${type}_api_key`;
+        const settingKeyMap = {
+            'nik': 'api_key',
+            'eyex': 'eyex_api_key',
+            'starkiller': 'starkiller_api_key',
+            'edabu': 'edabu_api_key',
+            'nopol': 'nopol_api_key',
+            'nopol_tb': 'nopol_terbangbebas_api_key'
+        };
+        const settingKey = settingKeyMap[type];
         db.setSetting(settingKey, key);
 
         await bot.sendMessage(msg.chat.id,
