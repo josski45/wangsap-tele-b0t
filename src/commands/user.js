@@ -815,8 +815,8 @@ const userCommands = {
     },
 
     /**
-     * Command: /nopol <PLAT> atau /nopol mesin|rangka|nik <nilai>
-     * Cek data kendaraan dari plat nomor, nomor mesin, nomor rangka, atau NIK
+     * Command: /nopol <DATA>
+     * Cek data kendaraan - support plat nomor, nomor mesin, nomor rangka, NIK
      */
     async nopol(bot, msg, args) {
         const userId = msg.from.id;
@@ -825,51 +825,17 @@ const userCommands = {
         
         if (args.length === 0) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n\n<b>1. Cari via Plat Nomor:</b>\n<code>/nopol B1234ABC</code>\n\n<b>2. Cari via Nomor Mesin:</b>\n<code>/nopol mesin JFE1E1256050</code>\n\n<b>3. Cari via Nomor Rangka:</b>\n<code>/nopol rangka MH1JFE111EK255950</code>\n\n<b>4. Cari via NIK Pemilik:</b>\n<code>/nopol nik 3201234567890001</code>`,
+                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/nopol &lt;DATA&gt;</code>\n\n✅ <b>Support Input:</b>\n• Plat Nomor: <code>B1234ABC</code>\n• Nomor Mesin: <code>JFE1E1256050</code>\n• Nomor Rangka: <code>MH1JFE111EK255950</code>\n• NIK Pemilik: <code>3201234567890001</code>\n\n<i>Sistem akan auto-detect tipe input</i>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
         }
 
-        // Deteksi tipe pencarian
-        let searchType = 'nopol';
-        let query = '';
-        const validTypes = ['mesin', 'rangka', 'nik'];
-        const typeLabels = {
-            'nopol': 'Plat Nomor',
-            'mesin': 'Nomor Mesin',
-            'rangka': 'Nomor Rangka',
-            'nik': 'NIK Pemilik'
-        };
-        
-        if (validTypes.includes(args[0].toLowerCase())) {
-            searchType = args[0].toLowerCase();
-            if (args.length < 2) {
-                const examples = { mesin: 'JFE1E1256050', rangka: 'MH1JFE111EK255950', nik: '3201234567890001' };
-                await bot.sendMessage(msg.chat.id,
-                    `❌ <b>Format Salah</b>\n\nGunakan: <code>/nopol ${searchType} &lt;NILAI&gt;</code>\nContoh: <code>/nopol ${searchType} ${examples[searchType]}</code>`,
-                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-                );
-                return;
-            }
-            query = args.slice(1).join('').toUpperCase().replace(/\s/g, '');
-        } else {
-            query = args.join('').toUpperCase().replace(/\s/g, '');
-        }
+        const query = args.join('').toUpperCase().replace(/\s/g, '');
 
-        // Validasi panjang query
-        const minLen = searchType === 'nik' ? 16 : searchType === 'nopol' ? 2 : 5;
-        const maxLen = searchType === 'nik' ? 16 : searchType === 'rangka' ? 25 : searchType === 'mesin' ? 20 : 10;
-
-        if (query.length < minLen || query.length > maxLen) {
-            const examples = {
-                'nopol': 'B1234ABC',
-                'mesin': 'JFE1E1256050',
-                'rangka': 'MH1JFE111EK255950',
-                'nik': '3201234567890001'
-            };
+        if (query.length < 2 || query.length > 25) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>${typeLabels[searchType]} Tidak Valid</b>\n\nPanjang harus ${minLen}-${maxLen} karakter.\nContoh: <code>${examples[searchType]}</code>`,
+                `❌ <b>Input Tidak Valid</b>\n\nPanjang harus 2-25 karakter.`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -896,16 +862,16 @@ const userCommands = {
             return;
         }
 
-        const requestId = db.createApiRequest(userId, 'nopol', query, searchType, nopolCost);
+        const requestId = db.createApiRequest(userId, 'nopol', query, 'nopol', nopolCost);
 
         const processingMsg = await bot.sendMessage(msg.chat.id,
-            `⏳ <b>Sedang Proses...</b>\n\n🔍 Mencari via: <b>${typeLabels[searchType]}</b>\n📝 Query: <b>${query}</b>\n🆔 ID: <code>${requestId}</code>`,
+            `⏳ <b>Sedang Proses...</b>\n\n🔍 Mencari: <b>${query}</b>\n🆔 ID: <code>${requestId}</code>`,
             { parse_mode: 'HTML' }
         );
 
         db.deductTokens(userId, nopolCost);
 
-        let result = await apiService.checkNopol(query, searchType);
+        let result = await apiService.checkNopol(query);
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
 
@@ -927,7 +893,7 @@ const userCommands = {
                 db.refundTokens(userId, nopolCost);
             }
             db.updateApiRequest(requestId, 'failed', null, null, result.error);
-            db.createTransaction(userId, 'check', nopolCost, `Cek Nopol (${searchType}) gagal`, query, 'failed');
+            db.createTransaction(userId, 'check', nopolCost, `Cek Nopol gagal`, query, 'failed');
             
             await bot.editMessageText(
                 `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${nopolCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
@@ -939,7 +905,7 @@ const userCommands = {
         if (!result.fromCache) {
             db.updateApiRequest(requestId, 'success', `${result.data?.NamaPemilik || 'Data'}`, null, null, result.data);
         }
-        db.createTransaction(userId, 'check', nopolCost, `Cek Nopol (${searchType}) berhasil${result.fromCache ? ' (cache)' : ''}`, query, 'success');
+        db.createTransaction(userId, 'check', nopolCost, `Cek Nopol berhasil${result.fromCache ? ' (cache)' : ''}`, query, 'success');
 
         let text = formatter.nopolResultMessage(result.data, nopolCost, requestId, remainingToken);
         if (result.fromCache) {

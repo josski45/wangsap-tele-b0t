@@ -18,6 +18,30 @@ class APIService {
         this.edabuBaseUrl = config.edabuBaseUrl;
         this.nopolBaseUrl = config.nopolBaseUrl;
         this.httpsAgent = new https.Agent({ rejectUnauthorized: false });
+        
+        // Default timeout & retry config
+        this.defaultTimeout = 60000; // 60 detik
+        this.maxRetries = 2; // 2 attempts
+    }
+
+    /**
+     * Retry wrapper untuk semua API calls
+     */
+    async withRetry(apiCall, retries = this.maxRetries) {
+        let lastError;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const result = await apiCall();
+                return result;
+            } catch (error) {
+                lastError = error;
+                console.log(`⚠️ API attempt ${attempt}/${retries} failed: ${error.message}`);
+                if (attempt < retries) {
+                    await this.delay(2000); // wait 2s before retry
+                }
+            }
+        }
+        throw lastError;
     }
 
     /**
@@ -45,40 +69,41 @@ class APIService {
      */
     async checkNIK(nik) {
         try {
-            const apiKey = this.getApiKey('nik');
-            const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}`;
-            
-            const response = await axios.get(url, {
-                timeout: 30000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            return await this.withRetry(async () => {
+                const apiKey = this.getApiKey('nik');
+                const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}`;
+                
+                const response = await axios.get(url, {
+                    timeout: this.defaultTimeout,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                const data = response.data;
+
+                if (data.error === true || data.error === 'true') {
+                    return {
+                        success: false,
+                        error: data.message || 'Data tidak ditemukan',
+                        refund: true
+                    };
                 }
+
+                if (!data.data || Object.keys(data.data).length === 0) {
+                    return {
+                        success: false,
+                        error: 'Data tidak ditemukan untuk NIK tersebut',
+                        refund: true
+                    };
+                }
+
+                return {
+                    success: true,
+                    data: data.data,
+                    refund: false
+                };
             });
-
-            const data = response.data;
-
-            if (data.error === true || data.error === 'true') {
-                return {
-                    success: false,
-                    error: data.message || 'Data tidak ditemukan',
-                    refund: true
-                };
-            }
-
-            if (!data.data || Object.keys(data.data).length === 0) {
-                return {
-                    success: false,
-                    error: 'Data tidak ditemukan untuk NIK tersebut',
-                    refund: true
-                };
-            }
-
-            return {
-                success: true,
-                data: data.data,
-                refund: false
-            };
-
         } catch (error) {
             console.error('NIK API Error:', error.message);
             return this.handleError(error);
@@ -90,34 +115,35 @@ class APIService {
      */
     async searchByName(name, page = 1) {
         try {
-            const apiKey = this.getApiKey('eyex');
-            const url = `${this.eyexBaseUrl}/sname?key=${apiKey}&data=${encodeURIComponent(name)}&page=${page}`;
-            
-            const response = await axios.get(url, {
-                timeout: 30000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            return await this.withRetry(async () => {
+                const apiKey = this.getApiKey('eyex');
+                const url = `${this.eyexBaseUrl}/sname?key=${apiKey}&data=${encodeURIComponent(name)}&page=${page}`;
+                
+                const response = await axios.get(url, {
+                    timeout: this.defaultTimeout,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                const data = response.data;
+
+                if (!data.result || data.result === false) {
+                    return {
+                        success: false,
+                        error: data.message || 'Data tidak ditemukan',
+                        refund: true
+                    };
                 }
-            });
 
-            const data = response.data;
-
-            if (!data.result || data.result === false) {
                 return {
-                    success: false,
-                    error: data.message || 'Data tidak ditemukan',
-                    refund: true
+                    success: true,
+                    data: data.data,
+                    account: data.account,
+                    searchName: data.name,
+                    refund: false
                 };
-            }
-
-            return {
-                success: true,
-                data: data.data,
-                account: data.account,
-                searchName: data.name,
-                refund: false
-            };
-
+            });
         } catch (error) {
             console.error('EYEX Name API Error:', error.message);
             return this.handleError(error);
@@ -129,34 +155,35 @@ class APIService {
      */
     async checkKK(kkNumber) {
         try {
-            const apiKey = this.getApiKey('eyex');
-            const url = `${this.eyexBaseUrl}/nkk?key=${apiKey}&data=${kkNumber}`;
-            
-            const response = await axios.get(url, {
-                timeout: 30000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            return await this.withRetry(async () => {
+                const apiKey = this.getApiKey('eyex');
+                const url = `${this.eyexBaseUrl}/nkk?key=${apiKey}&data=${kkNumber}`;
+                
+                const response = await axios.get(url, {
+                    timeout: this.defaultTimeout,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                const data = response.data;
+
+                if (!data.result || data.result === false) {
+                    return {
+                        success: false,
+                        error: data.message || 'Data tidak ditemukan',
+                        refund: true
+                    };
                 }
-            });
 
-            const data = response.data;
-
-            if (!data.result || data.result === false) {
                 return {
-                    success: false,
-                    error: data.message || 'Data tidak ditemukan',
-                    refund: true
+                    success: true,
+                    data: data.data,
+                    account: data.account,
+                    nkk: data.nkk,
+                    refund: false
                 };
-            }
-
-            return {
-                success: true,
-                data: data.data,
-                account: data.account,
-                nkk: data.nkk,
-                refund: false
-            };
-
+            });
         } catch (error) {
             console.error('EYEX KK API Error:', error.message);
             return this.handleError(error);
@@ -408,54 +435,43 @@ class APIService {
     }
 
     /**
-     * CEK NOPOL (Plat Nomor Kendaraan)
-     * /nopol <plat> | /nopol mesin <no_mesin> | /nopol rangka <no_rangka> | /nopol nik <nik>
-     * @param {string} query - Nilai yang dicari (plat, nomor mesin, nomor rangka, atau NIK)
-     * @param {string} type - Tipe pencarian: 'nopol' (default), 'mesin', 'rangka', 'nik'
+     * CEK NOPOL (Plat Nomor / Mesin / Rangka / NIK)
+     * Support: plat nomor, nomor mesin, nomor rangka, NIK
      */
-    async checkNopol(query, type = 'nopol') {
+    async checkNopol(query) {
         try {
-            const apiKey = this.getApiKey('nopol');
-            const url = `${this.nopolBaseUrl}/check-nopol`;
-            
-            // Mapping tipe ke label
-            const typeLabels = {
-                'nopol': 'Plat Nomor',
-                'mesin': 'Nomor Mesin',
-                'rangka': 'Nomor Rangka',
-                'nik': 'NIK Pemilik'
-            };
-            
-            const response = await axios.post(url, 
-                `api_key=${apiKey}&${type}=${encodeURIComponent(query)}`,
-                {
-                    timeout: 30000,
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            return await this.withRetry(async () => {
+                const apiKey = this.getApiKey('nopol');
+                const url = `${this.nopolBaseUrl}/check-nopol`;
+                
+                const response = await axios.post(url, 
+                    `api_key=${apiKey}&nopol=${encodeURIComponent(query)}`,
+                    {
+                        timeout: this.defaultTimeout,
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
                     }
+                );
+
+                const data = response.data;
+
+                if (data.status !== 'success' || !data.data || data.data.length === 0) {
+                    return {
+                        success: false,
+                        error: data.message || 'Data tidak ditemukan',
+                        refund: true
+                    };
                 }
-            );
 
-            const data = response.data;
-
-            if (data.status !== 'success' || !data.data || data.data.length === 0) {
                 return {
-                    success: false,
-                    error: data.message || `Data tidak ditemukan untuk ${typeLabels[type] || type} tersebut`,
-                    refund: true,
-                    searchType: type
+                    success: true,
+                    data: data.data[0],
+                    refund: false
                 };
-            }
-
-            return {
-                success: true,
-                data: data.data[0],
-                refund: false,
-                searchType: type
-            };
-
+            });
         } catch (error) {
             console.error('NOPOL API Error:', error.message);
             return this.handleError(error);
