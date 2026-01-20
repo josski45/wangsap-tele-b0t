@@ -815,6 +815,110 @@ const userCommands = {
     },
 
     /**
+     * Command: /nopol <PLAT>
+     * Cek data kendaraan dari plat nomor
+     */
+    async nopol(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/nopol &lt;PLAT&gt;</code>\nContoh: <code>/nopol B1234ABC</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const nopol = args.join('').toUpperCase().replace(/\s/g, '');
+
+        if (nopol.length < 2 || nopol.length > 10) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Plat Nomor Tidak Valid</b>\n\nFormat: <b>[Wilayah][Angka][Seri]</b>\nContoh: <code>B1234ABC</code>, <code>D5678XYZ</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+
+        if (settings.mt_nopol === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>CEK NOPOL</b> sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+
+        if (user.token_balance < nopolCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${nopolCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'nopol', nopol, 'nopol', nopolCost);
+
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n🚗 Mencari kendaraan: <b>${nopol}</b>\n🆔 ID: <code>${requestId}</code>`,
+            { parse_mode: 'HTML' }
+        );
+
+        db.deductTokens(userId, nopolCost);
+
+        let result = await apiService.checkNopol(nopol);
+        const updatedUser = db.getUser(userId);
+        const remainingToken = updatedUser?.token_balance || 0;
+
+        // If API fails, try to get from cache
+        if (!result.success) {
+            const cached = db.getCachedApiResponse('nopol', nopol);
+            if (cached && cached.response_data) {
+                console.log(`📦 Using cached data for NOPOL: ${nopol}`);
+                result = {
+                    success: true,
+                    data: cached.response_data,
+                    fromCache: true
+                };
+            }
+        }
+
+        if (!result.success) {
+            if (result.refund) {
+                db.refundTokens(userId, nopolCost);
+            }
+            db.updateApiRequest(requestId, 'failed', null, null, result.error);
+            db.createTransaction(userId, 'check', nopolCost, `Cek Nopol gagal`, nopol, 'failed');
+            
+            await bot.editMessageText(
+                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${nopolCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        if (!result.fromCache) {
+            db.updateApiRequest(requestId, 'success', `${result.data?.NamaPemilik || 'Data'}`, null, null, result.data);
+        }
+        db.createTransaction(userId, 'check', nopolCost, `Cek Nopol berhasil${result.fromCache ? ' (cache)' : ''}`, nopol, 'success');
+
+        let text = formatter.nopolResultMessage(result.data, nopolCost, requestId, remainingToken);
+        if (result.fromCache) {
+            text = `📦 <i>Data dari SIGMABOY</i>\n\n` + text;
+        }
+        await bot.editMessageText(text, {
+            chat_id: msg.chat.id,
+            message_id: processingMsg.message_id,
+            parse_mode: 'HTML'
+        });
+    },
+
+    /**
      * Command: /deposit <jumlah>
      */
     async deposit(bot, msg, args) {

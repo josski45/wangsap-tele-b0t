@@ -88,6 +88,7 @@ function menuMessage() {
     const kkCost = parseInt(settings.kk_cost) || config.kkCost;
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+    const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
 
     return `
 ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
@@ -100,6 +101,7 @@ ${LINE.sep}
 👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
+🚗 /nopol • <code>${nopolCost} token</code>
 
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
@@ -126,6 +128,7 @@ function helpMessage() {
     const kkCost = parseInt(settings.kk_cost) || config.kkCost;
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+    const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
     const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
     const riwayatDays = parseInt(settings.riwayat_days) || config.riwayatDays;
     const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
@@ -159,6 +162,10 @@ Harga: ${formatRupiah(tokenPrice)}/token
 🏥 <b>/edabu</b> &lt;NIK&gt;
    Biaya: <code>${edabuCost} token</code>
    Data: Status BPJS
+
+🚗 <b>/nopol</b> &lt;PLAT&gt;
+   Biaya: <code>${nopolCost} token</code>
+   Data: Info Kendaraan
 
 📋 <b>/riwayat</b>
    Biaya: <code>GRATIS</code>
@@ -440,6 +447,48 @@ ${LINE.double}
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
     return msg;
+}
+
+// ═══════════════════════════════════════════
+// NOPOL RESULT MESSAGE
+// ═══════════════════════════════════════════
+function nopolResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+    const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
+    
+    return `
+🚗 <b>HASIL CEK NOPOL</b>
+${LINE.double}
+
+🔖 <b>INFO KENDARAAN</b>
+Plat: <b>${escapeHtml(platNomor)}</b>
+Merk: ${escapeHtml(data.Merk || '-')}
+Type: ${escapeHtml(data.Type || '-')}
+Tahun: ${escapeHtml(data.TahunPembuatan || '-')}
+Warna: ${escapeHtml(data.Warna || '-')}
+CC: ${escapeHtml(data.IsiCylinder || '-')}
+Roda: ${data.JumlahRoda || '-'}
+
+📋 <b>DOKUMEN</b>
+No. Rangka: <code>${data.NoRangka || '-'}</code>
+No. Mesin: <code>${data.NoMesin || '-'}</code>
+No. BPKB: <code>${data.NoBPKB || '-'}</code>
+No. STNK: <code>${data.NoSTNK || '-'}</code>
+APM: ${escapeHtml(data.APM || '-')}
+
+👤 <b>PEMILIK</b>
+Nama: <b>${escapeHtml(data.NamaPemilik || '-')}</b>
+NIK: <code>${data.NoKTP || '-'}</code>
+No. KK: <code>${data.NoKK || '-'}</code>
+HP: ${escapeHtml(data.NoHP || '-')}
+Pekerjaan: ${escapeHtml(data.Pekerjaan || '-')}
+
+🏠 <b>ALAMAT</b>
+${escapeHtml(data.alamat || '-')}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
 }
 
 // ═══════════════════════════════════════════
@@ -799,6 +848,7 @@ module.exports = {
     kkResultMessage,
     fotoResultMessage,
     edabuResultMessage,
+    nopolResultMessage,
     depositRequestMessage,
     supportMessage,
     transactionHistoryMessage,

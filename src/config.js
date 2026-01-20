@@ -22,6 +22,10 @@ module.exports = {
     // EDABU API (untuk /edabu - BPJS)
     edabuApiKey: process.env.EDABU_API_KEY || '',
     edabuBaseUrl: process.env.EDABU_BASE_URL || 'http://164.92.180.153:2006/api',
+
+    // NOPOL API (untuk /nopol - Cek Plat Nomor)
+    nopolApiKey: process.env.NOPOL_API_KEY || '',
+    nopolBaseUrl: process.env.NOPOL_BASE_URL || 'https://siakses.my.id/api',
     
     // Cashi.id Payment Gateway
     cashiApiKey: process.env.CASHI_API_KEY || '',
@@ -41,6 +45,7 @@ module.exports = {
     kkCost: parseInt(process.env.KK_COST) || 3,
     fotoCost: parseInt(process.env.FOTO_COST) || 5,
     edabuCost: parseInt(process.env.EDABU_COST) || 3,
+    nopolCost: parseInt(process.env.NOPOL_COST) || 3,
     riwayatCost: parseFloat(process.env.RIWAYAT_COST) || 0,
     getdataCost: parseFloat(process.env.GETDATA_COST) || 0.5,
     riwayatDays: parseInt(process.env.RIWAYAT_DAYS) || 10,

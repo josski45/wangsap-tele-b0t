@@ -16,6 +16,7 @@ class APIService {
         this.eyexBaseUrl = config.eyexBaseUrl;
         this.starkillerBaseUrl = config.starkillerBaseUrl;
         this.edabuBaseUrl = config.edabuBaseUrl;
+        this.nopolBaseUrl = config.nopolBaseUrl;
         this.httpsAgent = new https.Agent({ rejectUnauthorized: false });
     }
 
@@ -31,6 +32,8 @@ class APIService {
                 return settings.starkiller_api_key || config.starkillerApiKey;
             case 'edabu':
                 return settings.edabu_api_key || config.edabuApiKey;
+            case 'nopol':
+                return settings.nopol_api_key || config.nopolApiKey;
             case 'nik':
             default:
                 return settings.api_key || config.apiKey;
@@ -402,6 +405,48 @@ class APIService {
      */
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * CEK NOPOL (Plat Nomor Kendaraan)
+     */
+    async checkNopol(nopol) {
+        try {
+            const apiKey = this.getApiKey('nopol');
+            const url = `${this.nopolBaseUrl}/check-nopol`;
+            
+            const response = await axios.post(url, 
+                `api_key=${apiKey}&nopol=${encodeURIComponent(nopol)}`,
+                {
+                    timeout: 30000,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                }
+            );
+
+            const data = response.data;
+
+            if (data.status !== 'success' || !data.data || data.data.length === 0) {
+                return {
+                    success: false,
+                    error: data.message || 'Data tidak ditemukan untuk plat nomor tersebut',
+                    refund: true
+                };
+            }
+
+            return {
+                success: true,
+                data: data.data[0],
+                refund: false
+            };
+
+        } catch (error) {
+            console.error('NOPOL API Error:', error.message);
+            return this.handleError(error);
+        }
     }
 }
 
