@@ -32,6 +32,53 @@ const ownerCommands = {
     },
 
     /**
+     * Command: /broadcast <pesan>
+     * Kirim pesan ke semua user (support multi-line)
+     */
+    async broadcast(bot, msg, args, rawText) {
+        // rawText = full text setelah command (termasuk newlines)
+        let message = rawText || args.join(' ');
+        
+        if (!message || message.trim().length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b> Pesan bisa multi-line`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        message = message.trim();
+        const users = db.getAllUsers();
+
+        await bot.sendMessage(msg.chat.id,
+            `📢 Mengirim ke <b>${users.length} user</b>...`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const user of users) {
+            try {
+                const broadcastText = `📢 <b>PENGUMUMAN</b>\n\n${formatter.escapeHtml(message)}\n\n<i>- ${config.botName}</i>`;
+                
+                await bot.sendMessage(user.user_id, broadcastText, { parse_mode: 'HTML' });
+                successCount++;
+                
+                // Delay untuk anti-ban
+                await new Promise(resolve => setTimeout(resolve, 100));
+            } catch (error) {
+                failCount++;
+            }
+        }
+
+        await bot.sendMessage(msg.chat.id,
+            `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+    },
+
+    /**
      * Command: /pending
      */
     async pending(bot, msg) {

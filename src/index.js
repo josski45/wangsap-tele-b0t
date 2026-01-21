@@ -74,6 +74,9 @@ async function startBot() {
                 
                 const args = parts.slice(1);
                 
+                // rawText = teks setelah command (untuk multi-line support seperti broadcast)
+                const rawText = text.slice(text.indexOf(parts[0]) + parts[0].length).trim();
+                
                 const userId = msg.from.id;
                 const userIsOwner = isOwner(userId);
                 
@@ -95,7 +98,7 @@ async function startBot() {
 
                 // Route command
                 if (userCommands[command]) {
-                    await userCommands[command](bot, msg, args);
+                    await userCommands[command](bot, msg, args, rawText);
                 } else if (ownerCommands[command]) {
                     if (!userIsOwner) {
                         await bot.sendMessage(msg.chat.id,
@@ -104,7 +107,7 @@ async function startBot() {
                         );
                         return;
                     }
-                    await ownerCommands[command](bot, msg, args);
+                    await ownerCommands[command](bot, msg, args, rawText);
                 } else {
                     await bot.sendMessage(msg.chat.id,
                         '❌ <b>Command Tidak Dikenal</b>\n\nKetik /menu untuk melihat daftar command',
