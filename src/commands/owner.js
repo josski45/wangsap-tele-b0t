@@ -50,6 +50,9 @@ const ownerCommands = {
         message = message.trim();
         const users = db.getAllUsers();
 
+        // Debug log untuk cek apakah newlines preserved
+        console.log('📢 Broadcast message (raw):', JSON.stringify(message));
+
         await bot.sendMessage(msg.chat.id,
             `📢 Mengirim ke <b>${users.length} user</b>...`,
             { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
@@ -60,7 +63,9 @@ const ownerCommands = {
 
         for (const user of users) {
             try {
-                const broadcastText = `📢 <b>PENGUMUMAN</b>\n\n${formatter.escapeHtml(message)}\n\n<i>- ${config.botName}</i>`;
+                // Escape HTML tapi preserve newlines
+                const escapedMessage = formatter.escapeHtml(message);
+                const broadcastText = `📢 <b>PENGUMUMAN</b>\n\n${escapedMessage}\n\n<i>- ${config.botName}</i>`;
                 
                 await bot.sendMessage(user.user_id, broadcastText, { parse_mode: 'HTML' });
                 successCount++;

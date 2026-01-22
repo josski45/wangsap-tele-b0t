@@ -75,7 +75,9 @@ async function startBot() {
                 const args = parts.slice(1);
                 
                 // rawText = teks setelah command (untuk multi-line support seperti broadcast)
-                const rawText = text.slice(text.indexOf(parts[0]) + parts[0].length).trim();
+                // Cari posisi akhir dari command (termasuk @botusername jika ada)
+                const commandEndIndex = text.indexOf(' ');
+                const rawText = commandEndIndex > -1 ? text.slice(commandEndIndex + 1) : '';
                 
                 const userId = msg.from.id;
                 const userIsOwner = isOwner(userId);
