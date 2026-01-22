@@ -394,6 +394,93 @@ ${LINE.thin}
 // ═══════════════════════════════════════════
 // EDABU RESULT MESSAGE
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// BPJS KETENAGAKERJAAN RESULT MESSAGE
+// ═══════════════════════════════════════════
+function bpjstkResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, apiRemaining = null) {
+    // Data is array from API
+    const items = Array.isArray(data) ? data : [data];
+    const totalData = items.length;
+    
+    let msg = `
+👷 <b>HASIL CEK BPJS KETENAGAKERJAAN</b>
+${LINE.double}
+
+📊 Total: <b>${totalData}</b> data ditemukan
+`;
+
+    items.forEach((d, idx) => {
+        if (totalData > 1) {
+            msg += `\n${LINE.double}\n<b>${idx + 1}. ${escapeHtml(d.namaPerusahaan || 'Data')}</b>\n${LINE.double}\n`;
+        }
+        
+        msg += `
+${LINE.sep}
+${EMOJI.user} <b>DATA PESERTA</b>
+${LINE.thin}
+👤 Nama: <b>${escapeHtml(d.namaPeserta || '-')}</b>
+🆔 NIK KTP: <code>${d.nikKtp || '-'}</code>
+💳 No Kartu BPJS: <code>${d.kpj || '-'}</code>
+🔢 Kode TK: ${escapeHtml(d.kodeTk || '-')}
+📅 Tanggal Lahir: ${escapeHtml(d.tglLahir || '-')}
+📄 Jenis Identitas: ${escapeHtml(d.jenisIdentitas || '-')}
+🌍 Kewarganegaraan: ${escapeHtml(d.kewarganegaraan || '-')}
+💼 Jenis Pekerjaan: ${escapeHtml(d.jenisPekerjaan || '-')}
+
+${LINE.sep}
+🏢 <b>DATA PERUSAHAAN</b>
+${LINE.thin}
+Nama: <b>${escapeHtml(d.namaPerusahaan || '-')}</b>
+Kode Perusahaan: ${escapeHtml(d.kodePerusahaan || '-')}
+NPP: <code>${d.npp || '-'}</code>
+Kode Divisi: ${escapeHtml(d.kodeDivisi || '-')}
+Kode Segmen: ${escapeHtml(d.kodeSegmen || '-')}
+Kode Kantor: ${escapeHtml(d.kodeKantor || '-')}
+
+${LINE.sep}
+📋 <b>STATUS KEPESERTAAN</b>
+${LINE.thin}
+🟢 Tgl Aktif: ${escapeHtml(d.tglAktif || '-')}
+🔴 Tgl Non-Aktif: ${escapeHtml(d.tglNa || '-')}
+`;
+
+        if (d.alamatDomisili) {
+            msg += `
+${LINE.sep}
+🏠 <b>ALAMAT DOMISILI</b>
+${LINE.thin}
+${escapeHtml(d.alamatDomisili)}
+`;
+        }
+
+        if (d.namaPicPerusahaan || d.kontakPicPerusahaan || d.emailPicPerusahaan) {
+            msg += `
+${LINE.sep}
+📞 <b>PIC PERUSAHAAN</b>
+${LINE.thin}
+Nama: ${escapeHtml(d.namaPicPerusahaan || '-')}
+Kontak: ${escapeHtml(d.kontakPicPerusahaan || '-')}
+Email: ${escapeHtml(d.emailPicPerusahaan || '-')}
+`;
+        }
+    });
+
+    msg += `
+${LINE.double}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+    
+    if (apiRemaining !== null && apiRemaining !== undefined) {
+        msg += `📊 API Quota: <b>${apiRemaining}</b>\n`;
+    }
+    
+    return msg;
+}
+
+// ═══════════════════════════════════════════
+// EDABU RESULT MESSAGE (BPJS Kesehatan)
+// ═══════════════════════════════════════════
 function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, nikAddresses = {}) {
     const anggota = data?.anggota || [];
     const raw = data?.raw || [];
@@ -927,6 +1014,7 @@ module.exports = {
     kkResultMessage,
     fotoResultMessage,
     edabuResultMessage,
+    bpjstkResultMessage,
     nopolResultMessage,
     regnikResultMessage,
     regsimResultMessage,

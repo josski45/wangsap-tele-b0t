@@ -45,6 +45,7 @@ module.exports = {
     kkCost: parseInt(process.env.KK_COST) || 3,
     fotoCost: parseInt(process.env.FOTO_COST) || 5,
     edabuCost: parseInt(process.env.EDABU_COST) || 3,
+    bpjstkCost: parseInt(process.env.BPJSTK_COST) || 3,
     nopolCost: parseInt(process.env.NOPOL_COST) || 3,
     regnikCost: parseInt(process.env.REGNIK_COST) || 3,
     regsimCost: parseInt(process.env.REGSIM_COST) || 3,

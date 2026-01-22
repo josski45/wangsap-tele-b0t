@@ -364,6 +364,21 @@ class APIService {
     }
 
     /**
+     * CEK BPJS KETENAGAKERJAAN (BPJSTK)
+     * Mengecek data BPJS Ketenagakerjaan berdasarkan NIK
+     */
+    async checkBPJSTK(nik) {
+        try {
+            const BPJSTKService = require('./bpjstk');
+            const result = await BPJSTKService.checkByNIK(nik);
+            return result;
+        } catch (error) {
+            console.error('BPJSTK API Error:', error.message);
+            return this.handleError(error);
+        }
+    }
+
+    /**
      * FETCH NIK ADDRESS (untuk enrichment data EDABU)
      * Mengambil alamat lengkap berdasarkan NIK
      */

@@ -1182,6 +1182,125 @@ const userCommands = {
     },
 
     /**
+     * Command: /bpjstk <NIK>
+     * Cek data BPJS Ketenagakerjaan
+     */
+    async bpjstk(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/bpjstk &lt;NIK&gt;</code>\nContoh: <code>/bpjstk 1234567890123456</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const nik = args[0].replace(/\D/g, '');
+
+        if (!isValidNIK(nik)) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>NIK Tidak Valid</b>\n\nNIK harus <b>16 digit angka</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+
+        if (settings.mt_bpjstk === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>CEK BPJS Ketenagakerjaan</b> sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
+
+        if (user.token_balance < bpjstkCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${bpjstkCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'bpjstk', nik, 'bpjstk', bpjstkCost);
+
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n🏢 Mencari data BPJS Ketenagakerjaan: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n<i>Mohon tunggu sebentar...</i>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        db.deductTokens(userId, bpjstkCost);
+
+        try {
+            let result = await apiService.checkBPJSTK(nik);
+            
+            const updatedUser = db.getUser(userId);
+            const remainingToken = updatedUser?.token_balance || 0;
+
+            // If API fails, try to get from cache
+            if (!result.success) {
+                const cached = db.getCachedApiResponse('bpjstk', nik);
+                if (cached && cached.response_data) {
+                    console.log(`📦 Using cached data for BPJSTK: ${nik}`);
+                    result = {
+                        success: true,
+                        data: cached.response_data,
+                        fromCache: true
+                    };
+                }
+            }
+
+            if (!result.success) {
+                if (result.refund) {
+                    db.refundTokens(userId, bpjstkCost);
+                }
+                db.updateApiRequest(requestId, 'failed', null, null, result.error);
+                db.createTransaction(userId, 'check', bpjstkCost, `Cek BPJS Ketenagakerjaan gagal`, nik, 'failed');
+                
+                await bot.editMessageText(
+                    `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${bpjstkCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                    { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                );
+                return;
+            }
+
+            const apiRemaining = result.data?.quota?.remaining || null;
+            if (!result.fromCache) {
+                db.updateApiRequest(requestId, 'success', `Data BPJSTK`, apiRemaining?.toString(), null, result.data);
+            }
+            db.createTransaction(userId, 'check', bpjstkCost, `Cek BPJS Ketenagakerjaan berhasil${result.fromCache ? ' (cache)' : ''}`, nik, 'success');
+
+            let text = formatter.bpjstkResultMessage(result.data, bpjstkCost, requestId, remainingToken, apiRemaining);
+            if (result.fromCache) {
+                text = `📦 <i>Data dari Cache</i>\n\n` + text;
+            }
+            
+            await bot.editMessageText(text, {
+                chat_id: msg.chat.id,
+                message_id: processingMsg.message_id,
+                parse_mode: 'HTML'
+            });
+
+        } catch (error) {
+            console.error('BPJSTK Error:', error);
+            db.refundTokens(userId, bpjstkCost);
+            db.updateApiRequest(requestId, 'failed', null, null, error.message);
+            
+            await bot.editMessageText(
+                `❌ <b>Error</b>\n\n${formatter.escapeHtml(error.message)}\n\n🪙 Token dikembalikan: <b>${bpjstkCost} token</b>\n🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+        }
+    },
+
+    /**
      * Command: /deposit <jumlah>
      */
     async deposit(bot, msg, args) {
