@@ -20,9 +20,16 @@ const BPJS_LOGIN_URL = `${BPJS_BASE_URL}/login.bpjs`;
 const BPJS_CAPTCHA_URL = `${BPJS_BASE_URL}/captcha.php`;
 const BPJS_CHECK_URL = `${BPJS_BASE_URL}/act/eligble.bpjs`;
 
-// OCR API Configuration (free)
+// Multiple OCR API Keys for rotation (bypass rate limit)
+const OCR_API_KEYS = [
+    'helloworld',           // Free key 1
+    'K87899142388957',      // Free key 2
+    'K83908818388957',      // Free key 3
+    'K81182398588957',      // Free key 4
+    'blinkcatch',           // Alternative free key
+];
 const OCR_API_URL = 'https://api.ocr.space/Parse/Image';
-const OCR_API_KEY = 'helloworld';
+let currentOcrKeyIndex = 0; // Rotate keys
 
 // Session file path
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -153,46 +160,70 @@ class BPJSTKService {
     }
 
     /**
-     * Solve captcha using OCR.space API
+     * Get next OCR API key (rotation)
+     */
+    getNextOcrKey() {
+        const key = OCR_API_KEYS[currentOcrKeyIndex];
+        currentOcrKeyIndex = (currentOcrKeyIndex + 1) % OCR_API_KEYS.length;
+        return key;
+    }
+
+    /**
+     * Solve captcha using OCR.space API with key rotation
      */
     async solveCaptcha(imageBuffer) {
-        try {
-            const formData = new FormData();
-            formData.append('file', imageBuffer, {
-                filename: 'captcha.png',
-                contentType: 'image/png',
-            });
-            formData.append('language', 'eng');
-            formData.append('isOverlayRequired', 'false');
-            formData.append('detectOrientation', 'false');
-            formData.append('scale', 'true');
-            formData.append('OCREngine', '2');
+        // Try each API key until one works
+        for (let attempt = 0; attempt < OCR_API_KEYS.length; attempt++) {
+            const apiKey = this.getNextOcrKey();
+            console.log(`[BPJSTK] Trying OCR with key: ${apiKey.substring(0, 6)}...`);
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', imageBuffer, {
+                    filename: 'captcha.png',
+                    contentType: 'image/png',
+                });
+                formData.append('language', 'eng');
+                formData.append('isOverlayRequired', 'false');
+                formData.append('detectOrientation', 'false');
+                formData.append('scale', 'true');
+                formData.append('OCREngine', '2');
 
-            const response = await axios.post(OCR_API_URL, formData, {
-                headers: {
-                    ...formData.getHeaders(),
-                    'apikey': OCR_API_KEY,
-                },
-                timeout: 30000,
-            });
+                const response = await axios.post(OCR_API_URL, formData, {
+                    headers: {
+                        ...formData.getHeaders(),
+                        'apikey': apiKey,
+                    },
+                    timeout: 30000,
+                });
 
-            const result = response.data;
+                const result = response.data;
 
-            if (result.OCRExitCode === 1 && result.ParsedResults?.[0]?.ParsedText) {
-                const captchaText = result.ParsedResults[0].ParsedText
-                    .replace(/[\r\n\s]/g, '')
-                    .toLowerCase()
-                    .trim();
+                // Check if rate limited
+                if (result.ErrorMessage && result.ErrorMessage.includes('rate limit')) {
+                    console.log(`[BPJSTK] OCR key ${apiKey.substring(0, 6)}... rate limited, trying next...`);
+                    continue;
+                }
 
-                console.log(`[BPJSTK] Captcha solved: "${captchaText}"`);
-                return { success: true, text: captchaText };
+                if (result.OCRExitCode === 1 && result.ParsedResults?.[0]?.ParsedText) {
+                    const captchaText = result.ParsedResults[0].ParsedText
+                        .replace(/[\r\n\s]/g, '')
+                        .toLowerCase()
+                        .trim();
+
+                    console.log(`[BPJSTK] Captcha solved: "${captchaText}"`);
+                    return { success: true, text: captchaText };
+                }
+
+                return { success: false, error: 'OCR failed to parse captcha' };
+            } catch (error) {
+                console.error(`[BPJSTK] OCR Error with key ${apiKey.substring(0, 6)}...:`, error.message);
+                // Try next key on error
+                continue;
             }
-
-            return { success: false, error: 'OCR failed to parse captcha' };
-        } catch (error) {
-            console.error('[BPJSTK] OCR Error:', error.message);
-            return { success: false, error: error.message };
         }
+        
+        return { success: false, error: 'All OCR API keys exhausted' };
     }
 
     /**

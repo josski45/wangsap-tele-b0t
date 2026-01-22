@@ -88,6 +88,7 @@ function menuMessage() {
     const kkCost = parseInt(settings.kk_cost) || config.kkCost;
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+    const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
@@ -103,6 +104,7 @@ ${LINE.sep}
 👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
+👷 /bpjstk • <code>${bpjstkCost} token</code>
 🚗 /nopol • <code>${nopolCost} token</code>
 📱 /regnik • <code>${regnikCost} token</code>
 📱 /regsim • <code>${regsimCost} token</code>
@@ -132,6 +134,7 @@ function helpMessage() {
     const kkCost = parseInt(settings.kk_cost) || config.kkCost;
     const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+    const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
@@ -169,7 +172,11 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${edabuCost} token</code>
    Data: Status BPJS
 
-🚗 <b>/nopol</b> &lt;PLAT&gt;
+ 👷 <b>/bpjstk</b> &lt;NIK&gt;
+   Biaya: <code>${bpjstkCost} token</code>
+   Data: BPJS Ketenagakerjaan
+
+ 🚗 <b>/nopol</b> &lt;PLAT&gt;
    Biaya: <code>${nopolCost} token</code>
    Data: Info Kendaraan
 
