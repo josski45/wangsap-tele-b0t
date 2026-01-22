@@ -36,51 +36,71 @@ const ownerCommands = {
      * Kirim pesan ke semua user (support multi-line)
      */
     async broadcast(bot, msg, args, rawText) {
-        // rawText = full text setelah command (termasuk newlines)
-        let message = rawText || args.join(' ');
-        
-        if (!message || message.trim().length === 0) {
+        try {
+            console.log('🎯 Broadcast function called!');
+            console.log('🎯 rawText:', rawText);
+            console.log('🎯 args:', args);
+            
+            // rawText = full text setelah command (termasuk newlines)
+            // Fallback ke args.join(' ') jika rawText kosong
+            let message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+            
+            console.log('🎯 Final message:', JSON.stringify(message));
+            
+            if (!message || message.trim().length === 0) {
+                await bot.sendMessage(msg.chat.id,
+                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b> Pesan bisa multi-line`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            // Trim hanya leading/trailing whitespace, preserve internal newlines
+            message = message.trim();
+            const users = db.getAllUsers();
+
+            // Debug log untuk cek apakah newlines preserved
+            console.log('📢 Broadcast message (raw):', JSON.stringify(message));
+            console.log('📢 Broadcast message has newlines:', message.includes('\n'));
+
             await bot.sendMessage(msg.chat.id,
-                `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b> Pesan bisa multi-line`,
+                `📢 Mengirim ke <b>${users.length} user</b>...\n\n<i>Preview:</i>\n<code>${formatter.escapeHtml(message.substring(0, 100))}${message.length > 100 ? '...' : ''}</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
-            return;
-        }
 
-        message = message.trim();
-        const users = db.getAllUsers();
+            let successCount = 0;
+            let failCount = 0;
 
-        // Debug log untuk cek apakah newlines preserved
-        console.log('📢 Broadcast message (raw):', JSON.stringify(message));
-
-        await bot.sendMessage(msg.chat.id,
-            `📢 Mengirim ke <b>${users.length} user</b>...`,
-            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-        );
-
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const user of users) {
-            try {
-                // Escape HTML tapi preserve newlines
-                const escapedMessage = formatter.escapeHtml(message);
-                const broadcastText = `📢 <b>PENGUMUMAN</b>\n\n${escapedMessage}\n\n<i>- ${config.botName}</i>`;
-                
-                await bot.sendMessage(user.user_id, broadcastText, { parse_mode: 'HTML' });
-                successCount++;
-                
-                // Delay untuk anti-ban
-                await new Promise(resolve => setTimeout(resolve, 100));
-            } catch (error) {
-                failCount++;
+            for (const user of users) {
+                try {
+                    // Plain text mode - no formatting, 100% preserve newlines
+                    const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
+                    
+                    // Debug: cek apakah broadcastText ada newlines
+                    console.log('📤 Sending to user:', user.user_id);
+                    console.log('📤 Message:', JSON.stringify(broadcastText));
+                    console.log('📤 Has newlines:', broadcastText.includes('\n'));
+                    
+                    // Tanpa parse_mode = plain text, dijamin newlines preserved
+                    await bot.sendMessage(user.user_id, broadcastText);
+                    successCount++;
+                    
+                    // Delay untuk anti-ban
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    console.error('Error sending to user:', user.user_id, error.message);
+                    failCount++;
+                }
             }
-        }
 
-        await bot.sendMessage(msg.chat.id,
-            `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
-            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-        );
+            await bot.sendMessage(msg.chat.id,
+                `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } catch (error) {
+            console.error('❌ BROADCAST ERROR:', error);
+            await bot.sendMessage(msg.chat.id, `❌ Error: ${error.message}`, { reply_to_message_id: msg.message_id });
+        }
     },
 
     /**
@@ -315,44 +335,52 @@ const ownerCommands = {
 
     /**
      * Command: /broadcast <pesan>
+     * Support multi-line dengan rawText parameter
      */
-    async broadcast(bot, msg, args) {
-        if (args.length === 0) {
+    async broadcast(bot, msg, args, rawText) {
+        try {
+            // Gunakan rawText (preserve newlines) atau fallback ke args.join
+            let message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+            
+            if (!message || message.trim().length === 0) {
+                await bot.sendMessage(msg.chat.id,
+                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            message = message.trim();
+            const users = db.getAllUsers();
+
             await bot.sendMessage(msg.chat.id,
-                `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>`,
+                `📢 Mengirim ke <b>${users.length} user</b>...`,
+                { parse_mode: 'HTML' }
+            );
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const user of users) {
+                try {
+                    // Plain text mode - preserve newlines
+                    const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
+                    
+                    await bot.sendMessage(user.user_id, broadcastText);
+                    successCount++;
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            await bot.sendMessage(msg.chat.id,
+                `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
-            return;
+        } catch (error) {
+            console.error('❌ Broadcast error:', error);
         }
-
-        const message = args.join(' ');
-        const users = db.getAllUsers();
-
-        await bot.sendMessage(msg.chat.id,
-            `📢 Mengirim ke <b>${users.length} user</b>...`,
-            { parse_mode: 'HTML' }
-        );
-
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const user of users) {
-            try {
-                await bot.sendMessage(user.user_id,
-                    `📢 <b>PENGUMUMAN</b>\n\n${formatter.escapeHtml(message)}\n\n<i>- ${config.botName}</i>`,
-                    { parse_mode: 'HTML' }
-                );
-                successCount++;
-                await new Promise(resolve => setTimeout(resolve, 100));
-            } catch (error) {
-                failCount++;
-            }
-        }
-
-        await bot.sendMessage(msg.chat.id,
-            `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
-            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-        );
     },
 
     /**

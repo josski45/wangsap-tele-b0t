@@ -75,9 +75,14 @@ async function startBot() {
                 const args = parts.slice(1);
                 
                 // rawText = teks setelah command (untuk multi-line support seperti broadcast)
-                // Cari posisi akhir dari command (termasuk @botusername jika ada)
-                const commandEndIndex = text.indexOf(' ');
-                const rawText = commandEndIndex > -1 ? text.slice(commandEndIndex + 1) : '';
+                // Gunakan regex untuk match command di awal, lalu ambil sisanya
+                const commandMatch = text.match(/^\/\w+(@\w+)?/);
+                let rawText = '';
+                if (commandMatch) {
+                    rawText = text.slice(commandMatch[0].length);
+                    // Hanya hapus spasi/tab di awal, BUKAN newlines
+                    rawText = rawText.replace(/^[ \t]+/, '');
+                }
                 
                 const userId = msg.from.id;
                 const userIsOwner = isOwner(userId);
