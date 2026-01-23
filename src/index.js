@@ -142,8 +142,306 @@ async function startBot() {
             try {
                 const data = query.data;
                 const userId = query.from.id;
+                const chatId = query.message.chat.id;
+                const messageId = query.message.message_id;
+                const firstName = query.from.first_name || 'User';
+                const username = query.from.username || null;
                 
-                // Handle check deposit status
+                const settings = database.getAllSettings();
+                const minTopup = parseInt(settings.min_topup) || 2;
+                
+                // ═══════════════════════════════════════════
+                // DEPOSIT INCREMENT (+) HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('dep_inc_')) {
+                    const parts = data.split('_');
+                    // Format: dep_inc_<userId>_<currentAmount>_<step>
+                    const targetUserId = parseInt(parts[2]);
+                    const currentAmount = parseInt(parts[3]);
+                    const step = parseInt(parts[4]) || 1;
+                    
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    const newAmount = currentAmount + step;
+                    await bot.answerCallbackQuery(query.id, { text: `🪙 ${newAmount} token` });
+                    
+                    // Update menu
+                    await userCommands._sendDepositMenu(bot, chatId, userId, newAmount, null, messageId);
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // DEPOSIT DECREMENT (-) HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('dep_dec_')) {
+                    const parts = data.split('_');
+                    // Format: dep_dec_<userId>_<currentAmount>_<step>
+                    const targetUserId = parseInt(parts[2]);
+                    const currentAmount = parseInt(parts[3]);
+                    const step = parseInt(parts[4]) || 1;
+                    
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    let newAmount = currentAmount - step;
+                    if (newAmount < minTopup) {
+                        newAmount = minTopup;
+                        await bot.answerCallbackQuery(query.id, { 
+                            text: `⚠️ Minimum ${minTopup} token`,
+                            show_alert: false 
+                        });
+                    } else {
+                        await bot.answerCallbackQuery(query.id, { text: `🪙 ${newAmount} token` });
+                    }
+                    
+                    // Update menu
+                    await userCommands._sendDepositMenu(bot, chatId, userId, newAmount, null, messageId);
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // DEPOSIT SET (quick amount) HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('dep_set_')) {
+                    const parts = data.split('_');
+                    // Format: dep_set_<userId>_<amount>
+                    const targetUserId = parseInt(parts[2]);
+                    const amount = parseInt(parts[3]);
+                    
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    await bot.answerCallbackQuery(query.id, { text: `🪙 ${amount} token` });
+                    
+                    // Update menu
+                    await userCommands._sendDepositMenu(bot, chatId, userId, amount, null, messageId);
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // DEPOSIT CONFIRM HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('dep_confirm_')) {
+                    const parts = data.split('_');
+                    // Format: dep_confirm_<userId>_<amount>
+                    const targetUserId = parseInt(parts[2]);
+                    const tokenAmount = parseInt(parts[3]);
+                    
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    if (tokenAmount < minTopup) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: `❌ Minimum ${minTopup} token`,
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    await bot.answerCallbackQuery(query.id, {
+                        text: `⏳ Memproses deposit ${tokenAmount} token...`
+                    });
+                    
+                    // Delete the menu message
+                    await bot.deleteMessage(chatId, messageId).catch(() => {});
+                    
+                    // Process deposit
+                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount);
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // DEPOSIT CANCEL HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('dep_cancel_')) {
+                    const parts = data.split('_');
+                    const targetUserId = parseInt(parts[2]);
+                    
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    await bot.answerCallbackQuery(query.id, { text: '❌ Dibatalkan' });
+                    await bot.deleteMessage(chatId, messageId).catch(() => {});
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // LEGACY DEPOSIT BUTTON HANDLER (for old format)
+                // ═══════════════════════════════════════════
+                if (data.startsWith('deposit_')) {
+                    const parts = data.split('_');
+                    // Format: deposit_<userId>_<amount>
+                    
+                    if (parts[1] === 'info') {
+                        // Info button clicked
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '💡 Ketik /deposit <jumlah> untuk custom amount',
+                            show_alert: false
+                        });
+                        return;
+                    }
+                    
+                    const targetUserId = parseInt(parts[1]);
+                    const tokenAmount = parseInt(parts[2]);
+                    
+                    // Validate user - prevent other users from clicking
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    await bot.answerCallbackQuery(query.id, {
+                        text: `⏳ Memproses deposit ${tokenAmount} token...`
+                    });
+                    
+                    // Delete the menu message
+                    await bot.deleteMessage(chatId, messageId).catch(() => {});
+                    
+                    // Process deposit using the command handler
+                    const firstName = query.from.first_name || 'User';
+                    const username = query.from.username || null;
+                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount);
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // CHECK PAYMENT STATUS BUTTON
+                // ═══════════════════════════════════════════
+                if (data.startsWith('checkpay_')) {
+                    const parts = data.split('_');
+                    // Format: checkpay_<userId>_<depositId>
+                    const targetUserId = parseInt(parts[1]);
+                    const depositId = parseInt(parts[2]);
+                    
+                    // Validate user
+                    if (targetUserId !== userId && !isOwner(userId)) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Ini bukan deposit Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    const deposit = database.getDeposit(depositId);
+                    
+                    if (!deposit) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Deposit tidak ditemukan',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    const statusEmoji = {
+                        'pending': '⏳',
+                        'approved': '✅',
+                        'rejected': '❌',
+                        'expired': '⏰'
+                    };
+                    
+                    const statusText = {
+                        'pending': 'Menunggu Pembayaran',
+                        'approved': 'Berhasil!',
+                        'rejected': 'Ditolak',
+                        'expired': 'Kadaluarsa'
+                    };
+                    
+                    const emoji = statusEmoji[deposit.status] || '❓';
+                    const text = statusText[deposit.status] || deposit.status;
+                    
+                    await bot.answerCallbackQuery(query.id, {
+                        text: `${emoji} Status: ${text}`,
+                        show_alert: true
+                    });
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // CANCEL PAYMENT BUTTON
+                // ═══════════════════════════════════════════
+                if (data.startsWith('cancelpay_')) {
+                    const parts = data.split('_');
+                    // Format: cancelpay_<userId>_<depositId>
+                    const targetUserId = parseInt(parts[1]);
+                    const depositId = parseInt(parts[2]);
+                    
+                    // Validate user
+                    if (targetUserId !== userId && !isOwner(userId)) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Ini bukan deposit Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    const deposit = database.getDeposit(depositId);
+                    
+                    if (!deposit) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Deposit tidak ditemukan',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    if (deposit.status !== 'pending') {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Deposit sudah diproses, tidak bisa dibatalkan',
+                            show_alert: true
+                        });
+                        return;
+                    }
+                    
+                    // Cancel the deposit
+                    database.rejectDeposit(depositId);
+                    
+                    await bot.answerCallbackQuery(query.id, {
+                        text: '✅ Deposit dibatalkan',
+                        show_alert: false
+                    });
+                    
+                    // Delete the QRIS message
+                    await bot.deleteMessage(chatId, messageId).catch(() => {});
+                    
+                    await bot.sendMessage(chatId, 
+                        `❌ <b>Deposit #${depositId} Dibatalkan</b>\n\nSilakan buat request baru jika ingin deposit.`,
+                        { parse_mode: 'HTML' }
+                    );
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // LEGACY: Check deposit status (old format)
+                // ═══════════════════════════════════════════
                 if (data.startsWith('check_deposit_')) {
                     const depositId = parseInt(data.replace('check_deposit_', ''));
                     const deposit = database.getDeposit(depositId);

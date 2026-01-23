@@ -1301,7 +1301,8 @@ const userCommands = {
     },
 
     /**
-     * Command: /deposit <jumlah>
+     * Command: /deposit [jumlah]
+     * Show interactive deposit menu with +/- buttons OR process specific amount
      */
     async deposit(bot, msg, args) {
         const userId = msg.from.id;
@@ -1312,30 +1313,112 @@ const userCommands = {
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
         const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
 
-        if (args.length === 0) {
-            await bot.sendMessage(msg.chat.id,
-                `💳 <b>DEPOSIT TOKEN</b>\n\nGunakan: <code>/deposit &lt;jumlah&gt;</code>\nContoh: <code>/deposit 10</code>\n\n💰 Harga: <b>${formatter.formatRupiah(tokenPrice)}/token</b>\n📦 Minimum: <b>${minTopup} token</b>`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
+        db.getOrCreateUser(userId, username, firstName);
+
+        // If has args, process directly
+        if (args.length > 0) {
+            const tokenAmount = parseInt(args[0]);
+
+            if (isNaN(tokenAmount) || tokenAmount < minTopup) {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>Jumlah Tidak Valid</b>\n\nMinimum deposit: <b>${minTopup} token</b>`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            // Process deposit directly
+            await this._processDeposit(bot, msg.chat.id, userId, username, firstName, tokenAmount, msg.message_id);
             return;
         }
 
-        const tokenAmount = parseInt(args[0]);
+        // Show interactive deposit menu with +/- buttons
+        const defaultAmount = 5;
+        await this._sendDepositMenu(bot, msg.chat.id, userId, defaultAmount, msg.message_id);
+    },
 
-        if (isNaN(tokenAmount) || tokenAmount < minTopup) {
-            await bot.sendMessage(msg.chat.id,
-                `❌ <b>Jumlah Tidak Valid</b>\n\nMinimum deposit: <b>${minTopup} token</b>`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-            return;
+    /**
+     * Send interactive deposit menu with +/- buttons
+     */
+    async _sendDepositMenu(bot, chatId, userId, currentAmount, replyToMsgId = null, editMessageId = null) {
+        const settings = db.getAllSettings();
+        const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
+        const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
+        const totalPrice = currentAmount * tokenPrice;
+
+        const text = `💳 <b>DEPOSIT TOKEN</b>\n\n` +
+            `💰 Harga: <b>${formatter.formatRupiah(tokenPrice)}/token</b>\n` +
+            `📦 Minimum: <b>${minTopup} token</b>\n\n` +
+            `━━━━━━━━━━━━━━━━━━━\n` +
+            `🪙 <b>Jumlah:</b> <code>${currentAmount}</code> token\n` +
+            `💵 <b>Total:</b> <code>${formatter.formatRupiah(totalPrice)}</code>\n` +
+            `━━━━━━━━━━━━━━━━━━━\n\n` +
+            `👇 <i>Atur jumlah token:</i>`;
+
+        // Build interactive keyboard
+        const inlineKeyboard = [
+            // Row 1: -10, -5, -1, +1, +5, +10
+            [
+                { text: '-10', callback_data: `dep_dec_${userId}_${currentAmount}_10` },
+                { text: '-5', callback_data: `dep_dec_${userId}_${currentAmount}_5` },
+                { text: '-1', callback_data: `dep_dec_${userId}_${currentAmount}_1` },
+                { text: '+1', callback_data: `dep_inc_${userId}_${currentAmount}_1` },
+                { text: '+5', callback_data: `dep_inc_${userId}_${currentAmount}_5` },
+                { text: '+10', callback_data: `dep_inc_${userId}_${currentAmount}_10` }
+            ],
+            // Row 2: Quick amounts
+            [
+                { text: '🪙 10', callback_data: `dep_set_${userId}_10` },
+                { text: '🪙 25', callback_data: `dep_set_${userId}_25` },
+                { text: '🪙 50', callback_data: `dep_set_${userId}_50` },
+                { text: '🪙 100', callback_data: `dep_set_${userId}_100` }
+            ],
+            // Row 3: Confirm button
+            [
+                { text: `✅ Deposit ${currentAmount} Token (${formatter.formatRupiah(totalPrice)})`, callback_data: `dep_confirm_${userId}_${currentAmount}` }
+            ],
+            // Row 4: Cancel
+            [
+                { text: '❌ Batal', callback_data: `dep_cancel_${userId}` }
+            ]
+        ];
+
+        const options = {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: inlineKeyboard
+            }
+        };
+
+        if (editMessageId) {
+            // Edit existing message
+            await bot.editMessageText(text, {
+                chat_id: chatId,
+                message_id: editMessageId,
+                ...options
+            }).catch(() => {});
+        } else {
+            // Send new message
+            await bot.sendMessage(chatId, text, {
+                ...options,
+                reply_to_message_id: replyToMsgId
+            });
         }
+    },
+
+    /**
+     * Internal: Process deposit request
+     */
+    async _processDeposit(bot, chatId, userId, username, firstName, tokenAmount, replyToMsgId = null) {
+        const settings = db.getAllSettings();
+        const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
 
         db.getOrCreateUser(userId, username, firstName);
 
         const totalPrice = tokenAmount * tokenPrice;
-        const statusMsg = await bot.sendMessage(msg.chat.id, '⏳ <i>Membuat Invoice QRIS...</i>', {
+        const statusMsg = await bot.sendMessage(chatId, '⏳ <i>Membuat Invoice QRIS...</i>', {
             parse_mode: 'HTML',
-            reply_to_message_id: msg.message_id
+            reply_to_message_id: replyToMsgId
         });
 
         // Create Order with fancy ID
@@ -1343,12 +1426,12 @@ const userCommands = {
         const cashiResult = await paymentService.createQRISOrder(orderId, totalPrice);
         
         // Delete "Loading..."
-        await bot.deleteMessage(msg.chat.id, statusMsg.message_id).catch(() => {});
+        await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
 
         let depositId;
         
         if (!cashiResult.success) {
-            await bot.sendMessage(msg.chat.id, formatter.errorMessage('Gagal Membuat Deposit', cashiResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
+            await bot.sendMessage(chatId, formatter.errorMessage('Gagal Membuat Deposit', cashiResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
             return;
         }
 
@@ -1364,46 +1447,52 @@ const userCommands = {
         // Generate QR Image
         let qrBuffer;
         try {
-            // Check if qrUrl is http link or raw string
             const qrData = cashiResult.qrUrl;
             
             if (qrData && qrData.startsWith('http')) {
-                qrBuffer = qrData; // Let Telegram download it
+                qrBuffer = qrData;
             } else if (qrData && (qrData.startsWith('data:') || qrData.length > 1000)) {
-                // If data URI or very long string, assume it's Base64 Image
                 const base64Data = qrData.replace(/^data:image\/[a-z]+;base64,/, "");
                 qrBuffer = Buffer.from(base64Data, 'base64');
             } else {
-                // Short string = Raw QR Payload -> Generate QR Image
                 qrBuffer = await QRCode.toBuffer(qrData);
             }
         } catch (e) {
             console.error('QR Gen Error:', e);
-            await bot.sendMessage(msg.chat.id, '❌ Gagal membuat gambar QRIS', { parse_mode: 'HTML' });
+            await bot.sendMessage(chatId, '❌ Gagal membuat gambar QRIS', { parse_mode: 'HTML' });
             return;
         }
 
-        // Build inline keyboard for Support
+        // Build inline keyboard
         const inlineKeyboard = [];
         
-        // Add support buttons from config.ownerIds
+        // Check status button (stores depositId and userId for validation)
+        inlineKeyboard.push([
+            { text: '🔄 Cek Status Pembayaran', callback_data: `checkpay_${userId}_${depositId}` }
+        ]);
+        
+        // Cancel button
+        inlineKeyboard.push([
+            { text: '❌ Batalkan', callback_data: `cancelpay_${userId}_${depositId}` }
+        ]);
+        
+        // Add support buttons
         if (config.ownerIds && config.ownerIds.length > 0) {
             const supportButtons = config.ownerIds.map((id, index) => ({
                 text: `📞 Support ${config.ownerIds.length > 1 ? (index + 1) : ''}`,
                 url: `tg://user?id=${id}`
             }));
             
-            // Chunk buttons into rows of 2
             for (let i = 0; i < supportButtons.length; i += 2) {
                 inlineKeyboard.push(supportButtons.slice(i, i + 2));
             }
         }
 
         // Send Photo
-        const sentMsg = await bot.sendPhoto(msg.chat.id, qrBuffer, {
+        const sentMsg = await bot.sendPhoto(chatId, qrBuffer, {
             caption: text,
             parse_mode: 'HTML',
-            reply_to_message_id: msg.message_id,
+            reply_to_message_id: replyToMsgId,
             reply_markup: {
                 inline_keyboard: inlineKeyboard
             }
@@ -1411,27 +1500,23 @@ const userCommands = {
 
         // Start Polling (Every 5s)
         const pollInterval = 5000;
-        const maxTime = 9 * 60 * 1000 + 30000; // 9 Minutes 30 seconds
+        const maxTime = 9 * 60 * 1000 + 30000;
         const startTime = Date.now();
-        const chatId = msg.chat.id;
         const messageId = sentMsg.message_id;
 
         const interval = setInterval(async () => {
             try {
-                // Check if expired time
                 if (Date.now() - startTime > maxTime) {
                     clearInterval(interval);
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
                     await bot.sendMessage(chatId, `❌ <b>Deposit #${depositId} Expired</b>\nSilakan buat request baru.`, { parse_mode: 'HTML' });
-                    db.rejectDeposit(depositId); // Update DB locally
+                    db.rejectDeposit(depositId);
                     return;
                 }
 
-                // Check Status via API
                 const check = await paymentService.checkPaymentStatus(orderId);
                 const currentDep = db.getDeposit(depositId);
 
-                // If already approved (anyway)
                 if (currentDep && currentDep.status === 'approved') {
                     clearInterval(interval);
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
@@ -1439,7 +1524,6 @@ const userCommands = {
                     return;
                 }
 
-                // If Paid at Gateway
                 if (check.success && (check.status === 'SETTLED' || check.status === 'PAID')) {
                     clearInterval(interval);
                     db.approveDeposit(depositId, 'SYSTEM_AUTO');
