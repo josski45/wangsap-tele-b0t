@@ -871,13 +871,18 @@ ${LINE.double}
 <b>⚙️ SETTINGS</b>
 💰 /setprice &lt;harga&gt;
 🪙 /setcost &lt;fitur&gt; &lt;cost&gt;
-🔑 /setapi &lt;type&gt; &lt;key&gt;
+� /setdeposit &lt;min&gt; (min deposit)
+�🔑 /setapi &lt;type&gt; &lt;key&gt;
 🛠️ /setmt &lt;fitur&gt; &lt;on/off&gt;
 ⚙️ /settings
 
 <b>📢 OTHER</b>
 📢 /broadcast &lt;pesan&gt;
 📝 /apilogs
+
+<b>💾 BACKUP</b>
+💾 /backup (manual)
+⚙️ /setbackup (setting)
 `;
 }
 

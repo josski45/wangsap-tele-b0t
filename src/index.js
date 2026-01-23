@@ -508,15 +508,126 @@ async function startBot() {
             console.error('❌ Bot error:', error.message);
         });
 
+        // ═══════════════════════════════════════════
+        // BACKUP SCHEDULER
+        // ═══════════════════════════════════════════
+        let backupInterval = null;
+        
+        function startBackupScheduler() {
+            backupInterval = setInterval(async () => {
+                try {
+                    const settings = database.getAllSettings();
+                    const backupEnabled = settings.backup_enabled_tg === 'true';
+                    
+                    if (!backupEnabled) return;
+                    
+                    const backupTime = settings.backup_time_tg || '03:00';
+                    const now = new Date();
+                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    
+                    if (currentTime === backupTime) {
+                        console.log('💾 [BACKUP] Starting scheduled backup...');
+                        await performScheduledBackup();
+                    }
+                } catch (error) {
+                    console.error('Backup scheduler error:', error.message);
+                }
+            }, 60000); // Check every minute
+            
+            console.log('⏰ Backup scheduler started');
+        }
+        
+        async function performScheduledBackup() {
+            const settings = database.getAllSettings();
+            const targets = settings.backup_targets_tg ? JSON.parse(settings.backup_targets_tg) : [];
+            
+            if (targets.length === 0) {
+                console.log('💾 [BACKUP] No targets configured');
+                return;
+            }
+            
+            try {
+                // Set maintenance mode
+                database.setSetting('backup_maintenance_tg', 'true');
+                
+                // Notify targets about maintenance
+                for (const target of targets) {
+                    try {
+                        await bot.sendMessage(target, 
+                            `⏳ <b>MAINTENANCE MODE</b>\n\n🔄 Backup database sedang berjalan...\n⏱️ Estimasi: 2-5 menit\n\n<i>Bot akan kembali normal setelah backup selesai</i>`,
+                            { parse_mode: 'HTML' }
+                        );
+                    } catch (e) {}
+                }
+                
+                await new Promise(r => setTimeout(r, 3000));
+                
+                // Create backup
+                const backupResult = await ownerCommands._createBackup();
+                
+                if (!backupResult.success) {
+                    console.error('💾 [BACKUP] Failed:', backupResult.error);
+                    database.setSetting('backup_maintenance_tg', 'false');
+                    return;
+                }
+                
+                // Send to all targets
+                let successCount = 0;
+                for (const target of targets) {
+                    try {
+                        await bot.sendDocument(target, backupResult.path, {
+                            caption: `💾 <b>BACKUP HARIAN OTOMATIS</b>\n\n📅 Tanggal: ${new Date().toLocaleDateString('id-ID')}\n⏰ Waktu: ${new Date().toLocaleTimeString('id-ID')}\n📊 Size: ${backupResult.size}\n\n<i>Auto backup dari ${config.botName}</i>`,
+                            parse_mode: 'HTML'
+                        }, {
+                            filename: backupResult.filename,
+                            contentType: 'application/x-sqlite3'
+                        });
+                        successCount++;
+                        await new Promise(r => setTimeout(r, 500));
+                    } catch (err) {
+                        console.error(`Backup send error to ${target}:`, err.message);
+                    }
+                }
+                
+                // Cleanup
+                const fs = require('fs');
+                try { fs.unlinkSync(backupResult.path); } catch (e) {}
+                
+                // Disable maintenance mode
+                database.setSetting('backup_maintenance_tg', 'false');
+                
+                // Notify completion
+                for (const target of targets) {
+                    try {
+                        await bot.sendMessage(target,
+                            `✅ <b>BACKUP SELESAI</b>\n\n📤 Terkirim ke ${successCount} target\n\n<i>Bot kembali normal</i>`,
+                            { parse_mode: 'HTML' }
+                        );
+                    } catch (e) {}
+                }
+                
+                console.log(`💾 [BACKUP] Completed! Sent to ${successCount}/${targets.length} targets`);
+                
+            } catch (error) {
+                console.error('💾 [BACKUP] Error:', error.message);
+                database.setSetting('backup_maintenance_tg', 'false');
+            }
+        }
+        
+        // Start backup scheduler
+        startBackupScheduler();
+
         // Graceful shutdown
         process.on('SIGINT', () => {
             console.log('\n👋 Shutting down bot...');
+            if (backupInterval) clearInterval(backupInterval);
             bot.stopPolling();
             process.exit(0);
         });
 
         process.on('SIGTERM', () => {
             console.log('\n👋 Shutting down bot...');
+            if (backupInterval) clearInterval(backupInterval);
             bot.stopPolling();
             process.exit(0);
         });

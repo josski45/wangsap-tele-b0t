@@ -1311,7 +1311,8 @@ const userCommands = {
         
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
-        const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
+        const minDeposit = parseInt(settings.min_deposit) || 2000; // Min deposit dari settings
+        const minTopup = Math.ceil(minDeposit / tokenPrice); // Hitung min token dari min rupiah
 
         db.getOrCreateUser(userId, username, firstName);
 
@@ -1343,7 +1344,8 @@ const userCommands = {
     async _sendDepositMenu(bot, chatId, userId, currentAmount, replyToMsgId = null, editMessageId = null) {
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
-        const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
+        const minDeposit = parseInt(settings.min_deposit) || 2000; // Min deposit dari settings
+        const minTopup = Math.ceil(minDeposit / tokenPrice); // Hitung min token dari min rupiah
         const totalPrice = currentAmount * tokenPrice;
 
         const text = `💳 <b>DEPOSIT TOKEN</b>\n\n` +

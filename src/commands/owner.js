@@ -594,6 +594,266 @@ const ownerCommands = {
             parse_mode: 'HTML',
             reply_to_message_id: msg.message_id 
         });
+    },
+
+    /**
+     * Command: /setdeposit <min_amount>
+     * Set minimum deposit amount dalam Rupiah
+     */
+    async setdeposit(bot, msg, args) {
+        if (args.length === 0) {
+            const settings = db.getAllSettings();
+            const currentMin = parseInt(settings.min_deposit) || 2000;
+            
+            await bot.sendMessage(msg.chat.id,
+                `💰 <b>SET MINIMUM DEPOSIT</b>\n\nFormat: <code>/setdeposit &lt;min_rupiah&gt;</code>\n\n📊 Current: <b>${formatter.formatRupiah(currentMin)}</b>\n\nContoh:\n<code>/setdeposit 2000</code> (min Rp 2.000)\n<code>/setdeposit 5000</code> (min Rp 5.000)\n<code>/setdeposit 10000</code> (min Rp 10.000)`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const minAmount = parseInt(args[0]);
+
+        if (isNaN(minAmount) || minAmount < 1000) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ Jumlah tidak valid!\n\nMinimal deposit harus >= Rp 1.000`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Simpan ke database
+        db.setSetting('min_deposit', minAmount);
+
+        await bot.sendMessage(msg.chat.id,
+            `✅ <b>MINIMUM DEPOSIT UPDATED</b>\n\n💰 Minimal deposit baru: <b>${formatter.formatRupiah(minAmount)}</b>\n\nUser harus deposit minimal ${formatter.formatRupiah(minAmount)} untuk bisa melakukan transaksi.`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+    },
+
+    // ═══════════════════════════════════════════
+    // BACKUP COMMANDS
+    // ═══════════════════════════════════════════
+
+    /**
+     * Command: /setbackup <add/remove/list> [target]
+     * Set target backup (user_id atau group_id Telegram)
+     */
+    async setbackup(bot, msg, args) {
+        if (args.length === 0) {
+            const settings = db.getAllSettings();
+            const targets = settings.backup_targets_tg ? JSON.parse(settings.backup_targets_tg) : [];
+            const backupTime = settings.backup_time_tg || '03:00';
+            const backupEnabled = settings.backup_enabled_tg === 'true';
+            
+            let targetList = targets.length > 0 
+                ? targets.map((t, i) => `${i + 1}. <code>${t}</code>`).join('\n')
+                : '<i>Belum ada target</i>';
+            
+            await bot.sendMessage(msg.chat.id,
+                `💾 <b>BACKUP SETTINGS</b>\n\n📊 Status: <b>${backupEnabled ? '✅ AKTIF' : '❌ NONAKTIF'}</b>\n⏰ Jadwal: <b>${backupTime} WIB</b>\n\n📋 <b>Target Backup:</b>\n${targetList}\n\n━━━━━━━━━━━━━━━━━\n<b>Commands:</b>\n• <code>/setbackup add &lt;id&gt;</code>\n• <code>/setbackup remove &lt;id&gt;</code>\n• <code>/setbackup list</code>\n• <code>/setbackup time &lt;HH:MM&gt;</code>\n• <code>/setbackup on/off</code>\n• <code>/setbackup here</code> (tambah chat ini)\n\n<b>Contoh:</b>\n<code>/setbackup add 123456789</code>\n<code>/setbackup here</code> (untuk grup)\n<code>/setbackup time 03:00</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const action = args[0].toLowerCase();
+        const settings = db.getAllSettings();
+        let targets = settings.backup_targets_tg ? JSON.parse(settings.backup_targets_tg) : [];
+
+        if (action === 'add' && args[1]) {
+            const target = args[1].replace(/[^0-9-]/g, '');
+            if (target.length < 5) {
+                await bot.sendMessage(msg.chat.id, `❌ ID tidak valid!`, { parse_mode: 'HTML', reply_to_message_id: msg.message_id });
+                return;
+            }
+            if (!targets.includes(target)) {
+                targets.push(target);
+                db.setSetting('backup_targets_tg', JSON.stringify(targets));
+            }
+            await bot.sendMessage(msg.chat.id,
+                `✅ Target backup ditambahkan: <code>${target}</code>\n\n📋 Total target: ${targets.length}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'here') {
+            // Add current chat as backup target
+            const chatId = msg.chat.id.toString();
+            if (!targets.includes(chatId)) {
+                targets.push(chatId);
+                db.setSetting('backup_targets_tg', JSON.stringify(targets));
+            }
+            await bot.sendMessage(msg.chat.id,
+                `✅ Chat ini ditambahkan sebagai target backup\n\n📋 Chat ID: <code>${chatId}</code>\n📋 Total target: ${targets.length}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'remove' && args[1]) {
+            const target = args[1].replace(/[^0-9-]/g, '');
+            targets = targets.filter(t => t !== target);
+            db.setSetting('backup_targets_tg', JSON.stringify(targets));
+            await bot.sendMessage(msg.chat.id,
+                `✅ Target backup dihapus: <code>${target}</code>\n\n📋 Sisa target: ${targets.length}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'list') {
+            let targetList = targets.length > 0 
+                ? targets.map((t, i) => `${i + 1}. <code>${t}</code>`).join('\n')
+                : '<i>Belum ada target</i>';
+            await bot.sendMessage(msg.chat.id,
+                `📋 <b>TARGET BACKUP:</b>\n\n${targetList}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'time' && args[1]) {
+            const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+            if (!timeRegex.test(args[1])) {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ Format waktu salah!\n\nGunakan format: HH:MM (24 jam)\nContoh: 03:00, 14:30`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+            db.setSetting('backup_time_tg', args[1]);
+            await bot.sendMessage(msg.chat.id,
+                `✅ Jadwal backup diubah: <b>${args[1]} WIB</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'on') {
+            db.setSetting('backup_enabled_tg', 'true');
+            await bot.sendMessage(msg.chat.id,
+                `✅ Backup otomatis <b>DIAKTIFKAN</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else if (action === 'off') {
+            db.setSetting('backup_enabled_tg', 'false');
+            await bot.sendMessage(msg.chat.id,
+                `✅ Backup otomatis <b>DINONAKTIFKAN</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        } else {
+            await bot.sendMessage(msg.chat.id,
+                `❌ Action tidak valid!\n\nGunakan: add, remove, list, time, on, off, here`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        }
+    },
+
+    /**
+     * Command: /backup
+     * Manual backup sekarang
+     */
+    async backup(bot, msg, args) {
+        const settings = db.getAllSettings();
+        const targets = settings.backup_targets_tg ? JSON.parse(settings.backup_targets_tg) : [];
+        
+        if (targets.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ Belum ada target backup!\n\nGunakan: <code>/setbackup add &lt;id&gt;</code> atau <code>/setbackup here</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Memulai backup...</b>\n\n🔄 Mengekspor database...\n📤 Mengirim ke ${targets.length} target...`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        try {
+            // Create backup file
+            const backupResult = await this._createBackup();
+            
+            if (!backupResult.success) {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ Backup gagal: ${formatter.escapeHtml(backupResult.error)}`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            // Send to all targets
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const target of targets) {
+                try {
+                    await bot.sendDocument(target, backupResult.path, {
+                        caption: `💾 <b>DATABASE BACKUP</b>\n\n📅 Tanggal: ${new Date().toLocaleDateString('id-ID')}\n⏰ Waktu: ${new Date().toLocaleTimeString('id-ID')}\n📊 Size: ${backupResult.size}\n\n<i>Backup dari ${config.botName}</i>`,
+                        parse_mode: 'HTML'
+                    }, {
+                        filename: backupResult.filename,
+                        contentType: 'application/x-sqlite3'
+                    });
+                    successCount++;
+                    await new Promise(r => setTimeout(r, 500));
+                } catch (err) {
+                    console.error(`Backup send error to ${target}:`, err.message);
+                    failCount++;
+                }
+            }
+
+            // Cleanup temp file
+            const fs = require('fs');
+            try { fs.unlinkSync(backupResult.path); } catch (e) {}
+
+            await bot.sendMessage(msg.chat.id,
+                `✅ <b>BACKUP SELESAI</b>\n\n📤 Terkirim: ${successCount}\n❌ Gagal: ${failCount}\n📊 Size: ${backupResult.size}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+
+        } catch (error) {
+            console.error('Backup error:', error);
+            await bot.sendMessage(msg.chat.id,
+                `❌ Backup error: ${formatter.escapeHtml(error.message)}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        }
+    },
+
+    /**
+     * Internal: Create backup file
+     */
+    async _createBackup() {
+        const fs = require('fs');
+        const path = require('path');
+        
+        try {
+            const dataFolder = path.join(__dirname, '..', '..', 'data');
+            const dbPath = path.join(dataFolder, 'database.db');
+            
+            if (!fs.existsSync(dbPath)) {
+                return { success: false, error: 'Database file tidak ditemukan' };
+            }
+
+            // Create backup folder
+            const backupFolder = path.join(dataFolder, 'backups');
+            if (!fs.existsSync(backupFolder)) {
+                fs.mkdirSync(backupFolder, { recursive: true });
+            }
+
+            // Create backup filename with timestamp
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const filename = `backup_${config.botName}_TG_${timestamp}.db`;
+            const backupPath = path.join(backupFolder, filename);
+
+            // Copy database file
+            fs.copyFileSync(dbPath, backupPath);
+
+            // Get file size
+            const stats = fs.statSync(backupPath);
+            const sizeKB = (stats.size / 1024).toFixed(2);
+            const size = stats.size > 1024 * 1024 
+                ? `${(stats.size / 1024 / 1024).toFixed(2)} MB`
+                : `${sizeKB} KB`;
+
+            return {
+                success: true,
+                path: backupPath,
+                filename: filename,
+                size: size
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 };
 
