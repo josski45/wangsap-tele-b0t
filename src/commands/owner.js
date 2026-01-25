@@ -290,6 +290,246 @@ const ownerCommands = {
     },
 
     /**
+     * Command: /setpromo
+     * Manage promo codes
+     * Usage:
+     *   /setpromo add <code> <bonus%> [minDepo] [maxUses] [expireDays]
+     *   /setpromo list
+     *   /setpromo delete <code>
+     *   /setpromo info <code>
+     *   /setpromo on <code>
+     *   /setpromo off <code>
+     */
+    async setpromo(bot, msg, args) {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+
+        if (args.length === 0) {
+            await bot.sendMessage(chatId,
+                `📋 <b>MANAGE PROMO CODES</b>\n\n` +
+                `<b>Commands:</b>\n` +
+                `• <code>/setpromo add &lt;code&gt; &lt;bonus%&gt; [minDepo] [maxUses] [expireDays]</code>\n` +
+                `• <code>/setpromo list</code>\n` +
+                `• <code>/setpromo delete &lt;code&gt;</code>\n` +
+                `• <code>/setpromo info &lt;code&gt;</code>\n` +
+                `• <code>/setpromo on &lt;code&gt;</code>\n` +
+                `• <code>/setpromo off &lt;code&gt;</code>\n\n` +
+                `<b>Example:</b>\n` +
+                `<code>/setpromo add BONUS100 100 50 100 30</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const action = args[0].toLowerCase();
+
+        switch (action) {
+            case 'add':
+                await ownerCommands._setpromoAdd(bot, chatId, userId, args.slice(1), msg.message_id);
+                break;
+            case 'list':
+                await ownerCommands._setpromoList(bot, chatId, msg.message_id);
+                break;
+            case 'delete':
+            case 'del':
+                await ownerCommands._setpromoDelete(bot, chatId, args.slice(1), msg.message_id);
+                break;
+            case 'info':
+                await ownerCommands._setpromoInfo(bot, chatId, args.slice(1), msg.message_id);
+                break;
+            case 'on':
+            case 'enable':
+                await ownerCommands._setpromoToggle(bot, chatId, args.slice(1), true, msg.message_id);
+                break;
+            case 'off':
+            case 'disable':
+                await ownerCommands._setpromoToggle(bot, chatId, args.slice(1), false, msg.message_id);
+                break;
+            default:
+                await bot.sendMessage(chatId,
+                    `❌ Action tidak dikenal: ${action}`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+        }
+    },
+
+    async _setpromoAdd(bot, chatId, userId, args, replyToMsgId) {
+        try {
+            if (args.length < 2) {
+                await bot.sendMessage(chatId,
+                    `❌ Format: <code>/setpromo add &lt;code&gt; &lt;bonus%&gt; [minDepo] [maxUses] [expireDays]</code>`,
+                    { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+                );
+                return;
+            }
+
+            const code = args[0].toUpperCase();
+            const bonusPercent = parseInt(args[1]);
+            const minDeposit = args[2] ? parseInt(args[2]) : 0;
+            const maxUses = args[3] ? parseInt(args[3]) : 0;
+            const expireDays = args[4] ? parseInt(args[4]) : null;
+
+            // Validasi
+            if (isNaN(bonusPercent) || bonusPercent < 1 || bonusPercent > 500) {
+                await bot.sendMessage(chatId,
+                    `❌ Bonus harus antara 1-500%`,
+                    { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+                );
+                return;
+            }
+
+            // Hitung expiry date
+            let expiresAt = null;
+            if (expireDays) {
+                const expiry = new Date();
+                expiry.setDate(expiry.getDate() + expireDays);
+                expiresAt = expiry.toISOString();
+            }
+
+            // Create promo
+            const promo = db.createPromo(code, bonusPercent, minDeposit, maxUses, expiresAt, userId.toString());
+
+            if (!promo) {
+                await bot.sendMessage(chatId,
+                    `❌ Gagal: Kode promo sudah ada`,
+                    { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+                );
+                return;
+            }
+
+            let text = `✅ <b>Promo Created!</b>\n\n`;
+            text += `🎟️ Code: <b>${promo.code}</b>\n`;
+            text += `💰 Bonus: <b>${promo.bonus_percent}%</b>\n`;
+            text += `📊 Min Deposit: <b>${promo.min_deposit} token</b>\n`;
+            text += `🔢 Max Uses: <b>${promo.max_uses === 0 ? 'Unlimited' : promo.max_uses}</b>\n`;
+            text += `⏰ Expires: <b>${promo.expires_at ? new Date(promo.expires_at).toLocaleString('id-ID') : 'Never'}</b>\n`;
+            text += `✅ Status: <b>Active</b>`;
+
+            await bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_to_message_id: replyToMsgId });
+        } catch (error) {
+            console.error('Error in _setpromoAdd:', error);
+            await bot.sendMessage(chatId,
+                `❌ Error: ${error.message}`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+        }
+    },
+
+    async _setpromoList(bot, chatId, replyToMsgId) {
+        const promos = db.getAllPromos();
+
+        if (promos.length === 0) {
+            await bot.sendMessage(chatId,
+                `📋 Tidak ada promo code`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        let text = `📋 <b>PROMO CODES (${promos.length})</b>\n\n`;
+
+        promos.forEach((p, i) => {
+            const status = p.is_active ? '✅' : '❌';
+            const expired = p.expires_at && new Date(p.expires_at) < new Date() ? ' [EXPIRED]' : '';
+            text += `${i + 1}. ${status} <b>${p.code}</b>\n`;
+            text += `   Bonus: ${p.bonus_percent}% | Min: ${p.min_deposit}t\n`;
+            text += `   Uses: ${p.current_uses}/${p.max_uses === 0 ? '∞' : p.max_uses}${expired}\n\n`;
+        });
+
+        await bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_to_message_id: replyToMsgId });
+    },
+
+    async _setpromoDelete(bot, chatId, args, replyToMsgId) {
+        if (args.length === 0) {
+            await bot.sendMessage(chatId,
+                `❌ Format: <code>/setpromo delete &lt;code&gt;</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        const code = args[0].toUpperCase();
+        const success = db.deletePromo(code);
+
+        if (!success) {
+            await bot.sendMessage(chatId,
+                `❌ Promo tidak ditemukan`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        await bot.sendMessage(chatId,
+            `✅ Promo <b>${code}</b> berhasil dihapus`,
+            { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+        );
+    },
+
+    async _setpromoInfo(bot, chatId, args, replyToMsgId) {
+        if (args.length === 0) {
+            await bot.sendMessage(chatId,
+                `❌ Format: <code>/setpromo info &lt;code&gt;</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        const code = args[0].toUpperCase();
+        const stats = db.getPromoStats(code);
+
+        if (!stats) {
+            await bot.sendMessage(chatId,
+                `❌ Promo tidak ditemukan`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        const promo = stats.promo;
+        const expired = promo.expires_at && new Date(promo.expires_at) < new Date();
+
+        let text = `🎟️ <b>PROMO: ${promo.code}</b>\n\n`;
+        text += `💰 Bonus: <b>${promo.bonus_percent}%</b>\n`;
+        text += `📊 Min Deposit: <b>${promo.min_deposit} token</b>\n`;
+        text += `🔢 Max Uses: <b>${promo.max_uses === 0 ? 'Unlimited' : promo.max_uses}</b>\n`;
+        text += `📈 Current Uses: <b>${promo.current_uses}</b>\n`;
+        text += `⏰ Expires: <b>${promo.expires_at ? new Date(promo.expires_at).toLocaleString('id-ID') : 'Never'}</b>\n`;
+        text += `✅ Status: <b>${promo.is_active && !expired ? 'Active' : 'Inactive'}</b>\n\n`;
+        text += `📊 <b>STATISTICS</b>\n`;
+        text += `Total Bonus Given: <b>${stats.totalBonus} token</b>\n`;
+        text += `Total Deposits: <b>${stats.totalDeposit} token</b>\n`;
+        text += `Users: <b>${stats.usages.length}</b>`;
+
+        await bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_to_message_id: replyToMsgId });
+    },
+
+    async _setpromoToggle(bot, chatId, args, isActive, replyToMsgId) {
+        if (args.length === 0) {
+            await bot.sendMessage(chatId,
+                `❌ Format: <code>/setpromo ${isActive ? 'on' : 'off'} &lt;code&gt;</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        const code = args[0].toUpperCase();
+        const promo = db.togglePromo(code, isActive);
+
+        if (!promo) {
+            await bot.sendMessage(chatId,
+                `❌ Promo tidak ditemukan`,
+                { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+            );
+            return;
+        }
+
+        await bot.sendMessage(chatId,
+            `✅ Promo <b>${code}</b> ${isActive ? 'diaktifkan' : 'dinonaktifkan'}`,
+            { parse_mode: 'HTML', reply_to_message_id: replyToMsgId }
+        );
+    },
+
+    /**
      * Command: /stats
      */
     async stats(bot, msg) {

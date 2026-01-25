@@ -1301,8 +1301,9 @@ const userCommands = {
     },
 
     /**
-     * Command: /deposit [jumlah]
+     * Command: /deposit [jumlah] [kode_promo]
      * Show interactive deposit menu with +/- buttons OR process specific amount
+     * Support promo code untuk bonus token
      */
     async deposit(bot, msg, args) {
         const userId = msg.from.id;
@@ -1319,6 +1320,7 @@ const userCommands = {
         // If has args, process directly
         if (args.length > 0) {
             const tokenAmount = parseInt(args[0]);
+            const promoCode = args[1] ? args[1].toUpperCase() : null;
 
             if (isNaN(tokenAmount) || tokenAmount < minTopup) {
                 await bot.sendMessage(msg.chat.id,
@@ -1328,20 +1330,64 @@ const userCommands = {
                 return;
             }
 
-            // Process deposit directly
-            await this._processDeposit(bot, msg.chat.id, userId, username, firstName, tokenAmount, msg.message_id);
+            // Validate promo code or auto-apply best promo
+            let promoInfo = null;
+            if (promoCode) {
+                // User entered promo code
+                const promoValidation = db.validatePromo(promoCode, userId.toString(), tokenAmount);
+                if (!promoValidation.valid) {
+                    await bot.sendMessage(msg.chat.id,
+                        `❌ <b>Promo Tidak Valid</b>\n\n${formatter.escapeHtml(promoValidation.error)}`,
+                        { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                    );
+                    return;
+                }
+                promoInfo = promoValidation;
+            } else {
+                // Auto-apply best promo
+                const activePromos = db.getActivePromos();
+                let bestPromo = null;
+                let bestBonus = 0;
+                
+                for (const promo of activePromos) {
+                    const validation = db.validatePromo(promo.code, userId.toString(), tokenAmount);
+                    if (validation.valid && validation.bonusAmount > bestBonus) {
+                        bestPromo = validation;
+                        bestBonus = validation.bonusAmount;
+                    }
+                }
+                
+                if (bestPromo) {
+                    promoInfo = bestPromo;
+                    promoInfo.autoApplied = true;
+                }
+            }
+
+            // Process deposit directly with promo info
+            await this._processDeposit(bot, msg.chat.id, userId, username, firstName, tokenAmount, msg.message_id, promoInfo);
             return;
+        }
+
+        // Get active promos for display
+        const activePromos = db.getActivePromos();
+        let promoText = '';
+        if (activePromos.length > 0) {
+            promoText = `\n\n🎁 <b>PROMO AKTIF:</b>\n`;
+            activePromos.slice(0, 3).forEach(p => {
+                promoText += `• <b>${p.code}</b> - Bonus ${p.bonus_percent}%${p.min_deposit > 0 ? ` (min ${p.min_deposit}t)` : ''}\n`;
+            });
+            promoText += `\n<i>Pakai: /deposit &lt;jumlah&gt; &lt;kode&gt;</i>`;
         }
 
         // Show interactive deposit menu with +/- buttons
         const defaultAmount = 5;
-        await this._sendDepositMenu(bot, msg.chat.id, userId, defaultAmount, msg.message_id);
+        await this._sendDepositMenu(bot, msg.chat.id, userId, defaultAmount, msg.message_id, null, promoText);
     },
 
     /**
      * Send interactive deposit menu with +/- buttons
      */
-    async _sendDepositMenu(bot, chatId, userId, currentAmount, replyToMsgId = null, editMessageId = null) {
+    async _sendDepositMenu(bot, chatId, userId, currentAmount, replyToMsgId = null, editMessageId = null, promoText = '') {
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
         const minDeposit = parseInt(settings.min_deposit) || 2000; // Min deposit dari settings
@@ -1354,7 +1400,7 @@ const userCommands = {
             `━━━━━━━━━━━━━━━━━━━\n` +
             `🪙 <b>Jumlah:</b> <code>${currentAmount}</code> token\n` +
             `💵 <b>Total:</b> <code>${formatter.formatRupiah(totalPrice)}</code>\n` +
-            `━━━━━━━━━━━━━━━━━━━\n\n` +
+            `━━━━━━━━━━━━━━━━━━━${promoText}\n\n` +
             `👇 <i>Atur jumlah token:</i>`;
 
         // Build interactive keyboard
@@ -1411,7 +1457,7 @@ const userCommands = {
     /**
      * Internal: Process deposit request
      */
-    async _processDeposit(bot, chatId, userId, username, firstName, tokenAmount, replyToMsgId = null) {
+    async _processDeposit(bot, chatId, userId, username, firstName, tokenAmount, replyToMsgId = null, promoInfo = null) {
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
 
@@ -1444,7 +1490,22 @@ const userCommands = {
             expiresAt: cashiResult.expiresAt
         });
 
-        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, cashiResult.expiresAt);
+        // Build promo text if applicable
+        let promoText = '';
+        if (promoInfo) {
+            const autoAppliedText = promoInfo.autoApplied ? ' (Otomatis Diterapkan ✨)' : '';
+            promoText = `\n\n🎁 <b>PROMO ${promoInfo.promo.code}${autoAppliedText}</b>\n   Bonus: <b>+${promoInfo.bonusAmount} token</b> (${promoInfo.bonusPercent}%)\n   Total Akhir: <b>${tokenAmount + promoInfo.bonusAmount} token</b>`;
+            
+            // Simpan info promo untuk processing nanti
+            db.setSetting(`promo_order_${orderId}`, JSON.stringify({
+                code: promoInfo.promo.code,
+                promoId: promoInfo.promo.id,
+                bonusAmount: promoInfo.bonusAmount,
+                bonusPercent: promoInfo.bonusPercent
+            }));
+        }
+
+        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, cashiResult.expiresAt) + promoText;
         
         // Generate QR Image
         let qrBuffer;
@@ -1522,15 +1583,61 @@ const userCommands = {
                 if (currentDep && currentDep.status === 'approved') {
                     clearInterval(interval);
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
-                    await bot.sendMessage(chatId, `✅ <b>Deposit ${orderId} Berhasil!</b>\n🪙 <b>${tokenAmount} token</b> telah masuk ke akun Anda.`, { parse_mode: 'HTML' });
+                    
+                    // Check for promo bonus
+                    let successMsg = `✅ <b>Deposit ${orderId} Berhasil!</b>\n🪙 <b>${tokenAmount} token</b> telah masuk ke akun Anda.`;
+                    const promoDataStr = db.getSetting(`promo_order_${orderId}`);
+                    if (promoDataStr) {
+                        try {
+                            const promoData = JSON.parse(promoDataStr);
+                            if (promoData.bonusAmount > 0) {
+                                successMsg = `✅ <b>Deposit ${orderId} Berhasil!</b>\n\n🪙 Token Deposit: <b>${tokenAmount}</b>\n🎁 Bonus Promo (${promoData.code}): <b>+${promoData.bonusAmount}</b>\n━━━━━━━━━━━━━━━\n💰 Total Token: <b>${tokenAmount + promoData.bonusAmount}</b>`;
+                            }
+                        } catch (e) {}
+                    }
+                    
+                    await bot.sendMessage(chatId, successMsg, { parse_mode: 'HTML' });
                     return;
                 }
 
                 if (check.success && (check.status === 'SETTLED' || check.status === 'PAID')) {
                     clearInterval(interval);
                     db.approveDeposit(depositId, 'SYSTEM_AUTO');
+                    
+                    // Process promo bonus
+                    let bonusAmount = 0;
+                    let promoCode = '';
+                    const promoDataStr = db.getSetting(`promo_order_${orderId}`);
+                    if (promoDataStr) {
+                        try {
+                            const promoData = JSON.parse(promoDataStr);
+                            bonusAmount = promoData.bonusAmount;
+                            promoCode = promoData.code;
+                            
+                            if (bonusAmount > 0 && promoData.promoId) {
+                                // Add bonus tokens
+                                db.updateTokenBalance(userId, bonusAmount);
+                                // Record promo usage
+                                db.usePromo(promoData.promoId, userId, tokenAmount, bonusAmount);
+                                // Create transaction record
+                                db.createTransaction(userId, 'promo_bonus', bonusAmount, 
+                                    `Bonus promo ${promoCode} untuk deposit ${orderId}`, orderId, 'success');
+                                // Clean up
+                                db.setSetting(`promo_order_${orderId}`, '');
+                            }
+                        } catch (e) {
+                            console.error('Error processing promo bonus:', e);
+                        }
+                    }
+                    
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
-                    await bot.sendMessage(chatId, `✅ <b>Deposit ${orderId} Berhasil!</b>\n🪙 <b>${tokenAmount} token</b> telah masuk ke akun Anda.`, { parse_mode: 'HTML' });
+                    
+                    let successMsg = `✅ <b>Deposit ${orderId} Berhasil!</b>\n🪙 <b>${tokenAmount} token</b> telah masuk ke akun Anda.`;
+                    if (bonusAmount > 0) {
+                        successMsg = `✅ <b>Deposit ${orderId} Berhasil!</b>\n\n🪙 Token Deposit: <b>${tokenAmount}</b>\n🎁 Bonus Promo (${promoCode}): <b>+${bonusAmount}</b>\n━━━━━━━━━━━━━━━\n💰 Total Token: <b>${tokenAmount + bonusAmount}</b>`;
+                    }
+                    
+                    await bot.sendMessage(chatId, successMsg, { parse_mode: 'HTML' });
                 } 
                 else if (check.success && check.status === 'EXPIRED') {
                     clearInterval(interval);

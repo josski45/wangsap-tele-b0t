@@ -222,6 +222,40 @@ function createTables() {
             FOREIGN KEY (user_id) REFERENCES users(user_id)
         )
     `);
+
+    // ═══════════════════════════════════════════
+    // PROMO CODE TABLES
+    // ═══════════════════════════════════════════
+    
+    // Promo codes table
+    exec(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            bonus_percent INTEGER NOT NULL,
+            min_deposit INTEGER DEFAULT 0,
+            max_uses INTEGER DEFAULT 0,
+            current_uses INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            expires_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT
+        )
+    `);
+
+    // Promo usage tracking table
+    exec(`
+        CREATE TABLE IF NOT EXISTS promo_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            promo_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            deposit_amount INTEGER NOT NULL,
+            bonus_amount INTEGER NOT NULL,
+            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (promo_id) REFERENCES promo_codes(id),
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    `);
 }
 
 // ═══════════════════════════════════════════
@@ -669,6 +703,164 @@ function getReferredUsers(userId, limit = 10) {
     `).all(String(userId), limit);
 }
 
+// ═══════════════════════════════════════════
+// PROMO CODE FUNCTIONS
+// ═══════════════════════════════════════════
+
+/**
+ * Create a new promo code
+ */
+function createPromo(code, bonusPercent, minDeposit = 0, maxUses = 0, expiresAt = null, createdBy = null) {
+    try {
+        prepare(`
+            INSERT INTO promo_codes (code, bonus_percent, min_deposit, max_uses, expires_at, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(code.toUpperCase(), bonusPercent, minDeposit, maxUses, expiresAt, createdBy);
+        return getPromo(code);
+    } catch (error) {
+        if (error.message.includes('UNIQUE constraint')) {
+            return null; // Code already exists
+        }
+        throw error;
+    }
+}
+
+/**
+ * Get promo by code
+ */
+function getPromo(code) {
+    return prepare('SELECT * FROM promo_codes WHERE code = ?').get(code.toUpperCase());
+}
+
+/**
+ * Get all promo codes
+ */
+function getAllPromos() {
+    return prepare('SELECT * FROM promo_codes ORDER BY created_at DESC').all();
+}
+
+/**
+ * Get active promo codes
+ */
+function getActivePromos() {
+    return prepare(`
+        SELECT * FROM promo_codes 
+        WHERE is_active = 1 
+        AND (expires_at IS NULL OR expires_at > datetime('now'))
+        AND (max_uses = 0 OR current_uses < max_uses)
+        ORDER BY bonus_percent DESC
+    `).all();
+}
+
+/**
+ * Validate if a promo code can be used by a user
+ */
+function validatePromo(code, userId, depositAmount) {
+    const promo = getPromo(code);
+    
+    if (!promo) {
+        return { valid: false, error: 'Kode promo tidak ditemukan' };
+    }
+    
+    if (!promo.is_active) {
+        return { valid: false, error: 'Kode promo tidak aktif' };
+    }
+    
+    if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+        return { valid: false, error: 'Kode promo sudah expired' };
+    }
+    
+    if (promo.max_uses > 0 && promo.current_uses >= promo.max_uses) {
+        return { valid: false, error: 'Kode promo sudah mencapai batas penggunaan' };
+    }
+    
+    if (depositAmount < promo.min_deposit) {
+        return { valid: false, error: `Minimal deposit ${promo.min_deposit} token untuk promo ini` };
+    }
+    
+    // Check if user already used this promo
+    const usage = prepare(`
+        SELECT * FROM promo_usage WHERE promo_id = ? AND user_id = ?
+    `).get(promo.id, String(userId));
+    
+    if (usage) {
+        return { valid: false, error: 'Anda sudah pernah menggunakan promo ini' };
+    }
+    
+    const bonusAmount = Math.floor(depositAmount * promo.bonus_percent / 100);
+    
+    return { 
+        valid: true, 
+        promo: promo,
+        bonusAmount: bonusAmount,
+        bonusPercent: promo.bonus_percent
+    };
+}
+
+/**
+ * Record promo usage (call this when deposit is approved)
+ */
+function usePromo(promoId, userId, depositAmount, bonusAmount) {
+    // Record usage
+    prepare(`
+        INSERT INTO promo_usage (promo_id, user_id, deposit_amount, bonus_amount)
+        VALUES (?, ?, ?, ?)
+    `).run(promoId, String(userId), depositAmount, bonusAmount);
+    
+    // Increment usage counter
+    prepare(`
+        UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = ?
+    `).run(promoId);
+    
+    return true;
+}
+
+/**
+ * Delete a promo code
+ */
+function deletePromo(code) {
+    const promo = getPromo(code);
+    if (!promo) return false;
+    
+    prepare('DELETE FROM promo_usage WHERE promo_id = ?').run(promo.id);
+    prepare('DELETE FROM promo_codes WHERE id = ?').run(promo.id);
+    return true;
+}
+
+/**
+ * Toggle promo active status
+ */
+function togglePromo(code, isActive) {
+    prepare('UPDATE promo_codes SET is_active = ? WHERE code = ?').run(isActive ? 1 : 0, code.toUpperCase());
+    return getPromo(code);
+}
+
+/**
+ * Get promo usage stats
+ */
+function getPromoStats(code) {
+    const promo = getPromo(code);
+    if (!promo) return null;
+    
+    const usages = prepare(`
+        SELECT pu.*, u.username, u.first_name
+        FROM promo_usage pu
+        LEFT JOIN users u ON pu.user_id = u.user_id
+        WHERE pu.promo_id = ?
+        ORDER BY pu.used_at DESC
+    `).all(promo.id);
+    
+    const totalBonus = usages.reduce((sum, u) => sum + u.bonus_amount, 0);
+    const totalDeposit = usages.reduce((sum, u) => sum + u.deposit_amount, 0);
+    
+    return {
+        promo: promo,
+        usages: usages,
+        totalBonus: totalBonus,
+        totalDeposit: totalDeposit
+    };
+}
+
 module.exports = {
     initialize,
     getUser,
@@ -706,5 +898,15 @@ module.exports = {
     getReferralStats,
     processReferralBonus,
     getReferrer,
-    getReferredUsers
+    getReferredUsers,
+    // Promo functions
+    createPromo,
+    getPromo,
+    getAllPromos,
+    getActivePromos,
+    validatePromo,
+    usePromo,
+    deletePromo,
+    togglePromo,
+    getPromoStats
 };

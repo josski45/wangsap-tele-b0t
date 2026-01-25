@@ -868,6 +868,9 @@ ${LINE.double}
 ➕ /addtoken &lt;user_id&gt; &lt;jml&gt;
 ➖ /reducetoken &lt;user_id&gt; &lt;jml&gt;
 
+<b>🎁 PROMO</b>
+🎟️ /setpromo
+
 <b>⚙️ SETTINGS</b>
 💰 /setprice &lt;harga&gt;
 🪙 /setcost &lt;fitur&gt; &lt;cost&gt;
