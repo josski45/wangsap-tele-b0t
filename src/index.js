@@ -266,8 +266,50 @@ async function startBot() {
                     // Delete the menu message
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
                     
+                    // Auto-apply best promo if no promo code was entered
+                    let promoInfo = null;
+                    try {
+                        const db = database;
+                        const activePromos = db.getActivePromos();
+                        
+                        if (activePromos && Array.isArray(activePromos) && activePromos.length > 0) {
+                            // Find best promo for this deposit amount
+                            const eligiblePromos = activePromos.filter(p => {
+                                if (!p || !p.code) return false;
+                                try {
+                                    const validation = db.validatePromo(p.code, userId.toString(), tokenAmount);
+                                    return validation && validation.valid;
+                                } catch (e) {
+                                    return false;
+                                }
+                            });
+
+                            if (eligiblePromos.length > 0) {
+                                // Sort by bonus amount (descending)
+                                eligiblePromos.sort((a, b) => {
+                                    const bonusA = Math.floor(tokenAmount * (a.bonus_percent || 0) / 100);
+                                    const bonusB = Math.floor(tokenAmount * (b.bonus_percent || 0) / 100);
+                                    return bonusB - bonusA;
+                                });
+
+                                const bestPromo = eligiblePromos[0];
+                                if (bestPromo && bestPromo.code) {
+                                    const bonusAmount = Math.floor(tokenAmount * (bestPromo.bonus_percent || 0) / 100);
+                                    promoInfo = {
+                                        promo: bestPromo,
+                                        bonusPercent: bestPromo.bonus_percent,
+                                        bonusAmount: bonusAmount,
+                                        autoApplied: true
+                                    };
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('❌ Error auto-applying promo:', e.message);
+                    }
+                    
                     // Process deposit
-                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount);
+                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount, null, promoInfo);
                     return;
                 }
                 
@@ -326,10 +368,52 @@ async function startBot() {
                     // Delete the menu message
                     await bot.deleteMessage(chatId, messageId).catch(() => {});
                     
+                    // Auto-apply best promo if no promo code was entered
+                    let promoInfo = null;
+                    try {
+                        const db = database;
+                        const activePromos = db.getActivePromos();
+                        
+                        if (activePromos && Array.isArray(activePromos) && activePromos.length > 0) {
+                            // Find best promo for this deposit amount
+                            const eligiblePromos = activePromos.filter(p => {
+                                if (!p || !p.code) return false;
+                                try {
+                                    const validation = db.validatePromo(p.code, userId.toString(), tokenAmount);
+                                    return validation && validation.valid;
+                                } catch (e) {
+                                    return false;
+                                }
+                            });
+
+                            if (eligiblePromos.length > 0) {
+                                // Sort by bonus amount (descending)
+                                eligiblePromos.sort((a, b) => {
+                                    const bonusA = Math.floor(tokenAmount * (a.bonus_percent || 0) / 100);
+                                    const bonusB = Math.floor(tokenAmount * (b.bonus_percent || 0) / 100);
+                                    return bonusB - bonusA;
+                                });
+
+                                const bestPromo = eligiblePromos[0];
+                                if (bestPromo && bestPromo.code) {
+                                    const bonusAmount = Math.floor(tokenAmount * (bestPromo.bonus_percent || 0) / 100);
+                                    promoInfo = {
+                                        promo: bestPromo,
+                                        bonusPercent: bestPromo.bonus_percent,
+                                        bonusAmount: bonusAmount,
+                                        autoApplied: true
+                                    };
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('❌ Error auto-applying promo:', e.message);
+                    }
+                    
                     // Process deposit using the command handler
                     const firstName = query.from.first_name || 'User';
                     const username = query.from.username || null;
-                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount);
+                    await userCommands._processDeposit(bot, chatId, userId, username, firstName, tokenAmount, null, promoInfo);
                     return;
                 }
                 
