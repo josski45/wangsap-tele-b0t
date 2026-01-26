@@ -12,24 +12,13 @@ const axios = require('axios');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
+const Tesseract = require('tesseract.js');
 
 // BPJS Ketenagakerjaan Configuration
 const BPJS_BASE_URL = 'https://e-plkk.bpjsketenagakerjaan.go.id';
 const BPJS_LOGIN_URL = `${BPJS_BASE_URL}/login.bpjs`;
 const BPJS_CAPTCHA_URL = `${BPJS_BASE_URL}/captcha.php`;
 const BPJS_CHECK_URL = `${BPJS_BASE_URL}/act/eligble.bpjs`;
-
-// Multiple OCR API Keys for rotation (bypass rate limit)
-const OCR_API_KEYS = [
-    'helloworld',           // Free key 1
-    'K87899142388957',      // Free key 2
-    'K83908818388957',      // Free key 3
-    'K81182398588957',      // Free key 4
-    'blinkcatch',           // Alternative free key
-];
-const OCR_API_URL = 'https://api.ocr.space/Parse/Image';
-let currentOcrKeyIndex = 0; // Rotate keys
 
 // Session file path
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -160,70 +149,41 @@ class BPJSTKService {
     }
 
     /**
-     * Get next OCR API key (rotation)
-     */
-    getNextOcrKey() {
-        const key = OCR_API_KEYS[currentOcrKeyIndex];
-        currentOcrKeyIndex = (currentOcrKeyIndex + 1) % OCR_API_KEYS.length;
-        return key;
-    }
-
-    /**
-     * Solve captcha using OCR.space API with key rotation
+     * Solve captcha using Tesseract.js
      */
     async solveCaptcha(imageBuffer) {
-        // Try each API key until one works
-        for (let attempt = 0; attempt < OCR_API_KEYS.length; attempt++) {
-            const apiKey = this.getNextOcrKey();
-            console.log(`[BPJSTK] Trying OCR with key: ${apiKey.substring(0, 6)}...`);
+        try {
+            console.log('[BPJSTK] Solving captcha with Tesseract.js...');
             
-            try {
-                const formData = new FormData();
-                formData.append('file', imageBuffer, {
-                    filename: 'captcha.png',
-                    contentType: 'image/png',
-                });
-                formData.append('language', 'eng');
-                formData.append('isOverlayRequired', 'false');
-                formData.append('detectOrientation', 'false');
-                formData.append('scale', 'true');
-                formData.append('OCREngine', '2');
-
-                const response = await axios.post(OCR_API_URL, formData, {
-                    headers: {
-                        ...formData.getHeaders(),
-                        'apikey': apiKey,
-                    },
-                    timeout: 30000,
-                });
-
-                const result = response.data;
-
-                // Check if rate limited
-                if (result.ErrorMessage && result.ErrorMessage.includes('rate limit')) {
-                    console.log(`[BPJSTK] OCR key ${apiKey.substring(0, 6)}... rate limited, trying next...`);
-                    continue;
-                }
-
-                if (result.OCRExitCode === 1 && result.ParsedResults?.[0]?.ParsedText) {
-                    const captchaText = result.ParsedResults[0].ParsedText
-                        .replace(/[\r\n\s]/g, '')
-                        .toLowerCase()
-                        .trim();
-
-                    console.log(`[BPJSTK] Captcha solved: "${captchaText}"`);
-                    return { success: true, text: captchaText };
-                }
-
-                return { success: false, error: 'OCR failed to parse captcha' };
-            } catch (error) {
-                console.error(`[BPJSTK] OCR Error with key ${apiKey.substring(0, 6)}...:`, error.message);
-                // Try next key on error
-                continue;
+            // Save temporary file
+            const tempPath = path.join(DATA_DIR, 'captcha.png');
+            if (!fs.existsSync(DATA_DIR)) {
+                fs.mkdirSync(DATA_DIR, { recursive: true });
             }
+            fs.writeFileSync(tempPath, imageBuffer);
+            
+            // OCR with Tesseract
+            const { data: { text } } = await Tesseract.recognize(
+                tempPath,
+                'eng',
+                {
+                    tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+                }
+            );
+            
+            // Clean up temp file
+            try { fs.unlinkSync(tempPath); } catch (e) {}
+            
+            // Clean result
+            const captchaText = text.trim().replace(/\s/g, '');
+            
+            console.log(`[BPJSTK] Captcha solved: "${captchaText}"`);
+            return { success: true, text: captchaText };
+            
+        } catch (error) {
+            console.error('[BPJSTK] Tesseract error:', error.message);
+            return { success: false, error: 'OCR failed to parse captcha' };
         }
-        
-        return { success: false, error: 'All OCR API keys exhausted' };
     }
 
     /**
@@ -341,9 +301,9 @@ class BPJSTKService {
     }
 
     /**
-     * Auto-login with OCR captcha
+     * Auto-login with OCR captcha (5 attempts)
      */
-    async autoLogin(maxRetries = 10) {
+    async autoLogin(maxRetries = 5) {
         console.log(`[BPJSTK] Starting auto-login (max ${maxRetries} retries)...`);
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -511,7 +471,7 @@ class BPJSTKService {
             // IMPORTANT: Login first if no valid session
             if (!this.isSessionValid()) {
                 console.log('[BPJSTK] No valid session, logging in first...');
-                const loginResult = await this.autoLogin(3);
+                const loginResult = await this.autoLogin(5);
                 
                 if (!loginResult.success) {
                     return {
@@ -530,7 +490,7 @@ class BPJSTKService {
                 console.log('[BPJSTK] Session expired during check, re-logging in...');
                 this.clearSession();
 
-                const loginResult = await this.autoLogin(3);
+                const loginResult = await this.autoLogin(5);
 
                 if (!loginResult.success) {
                     return {
