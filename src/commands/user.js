@@ -89,7 +89,18 @@ const userCommands = {
         let text = formatter.welcomeMessage(firstName, user.token_balance, todayChecks);
         text += referralText;
         
-        await bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML' });
+        // Send with keyboard buttons
+        await bot.sendMessage(msg.chat.id, text, { 
+            parse_mode: 'HTML',
+            reply_markup: {
+                keyboard: [
+                    [{ text: '💳 Deposit' }, { text: '🪙 Saldo' }],
+                    [{ text: '📋 Menu' }, { text: '❓ Bantuan' }]
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: false
+            }
+        });
     },
 
     /**
@@ -1863,6 +1874,170 @@ const userCommands = {
             parse_mode: 'HTML',
             reply_to_message_id: msg.message_id 
         });
+    },
+
+    /**
+     * Command: /databocor <query> - Search leaked data (LeakOSINT API)
+     */
+    async databocor(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (!checkCooldown(userId, 'databocor', 5000)) return;
+        
+        db.getOrCreateUser(userId, username, firstName);
+        
+        // Check if feature is enabled (maintenance check)
+        const isMaintenanceMode = db.getMaintenance?.('databocor') || false;
+        if (isMaintenanceMode) {
+            await bot.sendMessage(msg.chat.id, '🔧 <b>Fitur DATABOCOR sedang dalam maintenance</b>\n\nSilakan coba beberapa saat lagi.', {
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            });
+            return;
+        }
+        
+        // Usage info
+        if (!args || args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `📝 <b>CARA PENGGUNAAN DATABOCOR</b>\n\n` +
+                `Format: /databocor &lt;query&gt;\n\n` +
+                `📋 <b>Contoh:</b>\n` +
+                `• /databocor ABDUL ROZAQ - cari nama\n` +
+                `• /databocor email@gmail.com - cari email\n` +
+                `• /databocor 081234567890 - cari nomor HP\n` +
+                `• /databocor 3201XXXXXXXXXXXX - cari NIK\n\n` +
+                `💰 Cost: <b>${config.databocorCost} token</b>\n\n` +
+                `<i>Mencari data dari berbagai sumber kebocoran data.</i>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        const query = args.join(' ');
+        
+        // Validate query length
+        if (query.length < 3) {
+            await bot.sendMessage(msg.chat.id, '❌ Query terlalu pendek!\n\n<i>Minimal 3 karakter untuk pencarian.</i>', {
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            });
+            return;
+        }
+        
+        // Check balance
+        const user = db.getUser(userId);
+        if (!user || user.token_balance < config.databocorCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>TOKEN TIDAK CUKUP</b>\n\n` +
+                `💰 Dibutuhkan: <b>${config.databocorCost} token</b>\n` +
+                `💳 Saldo Anda: <b>${user?.token_balance || 0} token</b>\n\n` +
+                `Ketik /deposit untuk top up token.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        // Send processing message
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Memproses Permintaan</b>\n\n🔍 Query: <code>${query}</code>\n\n<i>Mencari di berbagai database kebocoran...</i>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+        
+        try {
+            // Create API request for tracking
+            const requestId = db.createApiRequest(userId, 'databocor', query, 'leakosint', config.databocorCost);
+            
+            // Call LeakOSINT API
+            const response = await axios.post(config.leakosintApiUrl, {
+                token: config.leakosintToken,
+                request: query,
+                limit: 100,
+                lang: 'id',
+                type: 'json'
+            }, {
+                timeout: 60000,
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const result = response.data;
+            
+            // Delete processing message
+            await bot.deleteMessage(msg.chat.id, processingMsg.message_id).catch(() => {});
+            
+            if (!result || result.NumOfResults === 0) {
+                db.updateApiRequest(requestId, 'failed', null, null, 'No data found');
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>Data Tidak Ditemukan</b>\n\n🔍 Query: <code>${query}</code>\n🆔 ID: <code>${requestId}</code>\n\n<i>Tidak ada data ditemukan di database kebocoran.</i>`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+            
+            // Deduct tokens
+            db.deductTokens(userId, config.databocorCost);
+            
+            // Update API request status
+            db.updateApiRequest(requestId, 'success', `${result.NumOfResults || 0} hasil dari ${result.NumOfDatabase || 0} database`, null, null, result);
+            
+            // Format response as plain text for file
+            let fileContent = `DATA BOCOR - SEARCH RESULT\n`;
+            fileContent += `Request ID: ${requestId}\n`;
+            fileContent += `${'='.repeat(50)}\n\n`;
+            fileContent += `Query: ${query}\n`;
+            fileContent += `Total: ${result.NumOfResults || 0} hasil\n`;
+            fileContent += `Database: ${result.NumOfDatabase || 0}\n\n`;
+            fileContent += `${'='.repeat(50)}\n\n`;
+            
+            // Format each database result
+            if (result.List) {
+                for (const [dbName, dbData] of Object.entries(result.List)) {
+                    fileContent += `📁 ${dbName} (${dbData.NumOfResults || 0} hasil)\n`;
+                    fileContent += `${'-'.repeat(50)}\n`;
+                    
+                    if (dbData.Data && dbData.Data.length > 0) {
+                        for (const item of dbData.Data) {
+                            for (const [key, value] of Object.entries(item)) {
+                                if (value) {
+                                    fileContent += `${key.padEnd(15)}: ${value}\n`;
+                                }
+                            }
+                            fileContent += `\n`;
+                        }
+                    }
+                    
+                    if (dbData.InfoLeak) {
+                        fileContent += `Info: ${dbData.InfoLeak}\n`;
+                    }
+                    fileContent += `\n`;
+                }
+            }
+            
+            const newBalance = db.getUser(userId)?.token_balance || 0;
+            fileContent += `${'='.repeat(50)}\n`;
+            fileContent += `Cost: -${config.databocorCost} token | Remaining: ${newBalance} token\n`;
+            fileContent += `Generated: ${new Date().toLocaleString('id-ID')}\n`;
+            
+            // Send as file
+            const fileName = `databocor_${query.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.txt`;
+            await bot.sendDocument(msg.chat.id, Buffer.from(fileContent, 'utf-8'), {
+                caption: `🔓 <b>Data Bocor Result</b>\n\n🔍 Query: <code>${query}</code>\n📊 Total: ${result.NumOfResults || 0} hasil\n🆔 ID: <code>${requestId}</code>\n💰 -${config.databocorCost} token | Sisa: ${newBalance}`,
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            }, {
+                filename: fileName,
+                contentType: 'text/plain'
+            });
+            
+        } catch (error) {
+            console.error('❌ DATABOCOR ERROR:', error.message);
+            await bot.deleteMessage(msg.chat.id, processingMsg.message_id).catch(() => {});
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Terjadi Kesalahan</b>\n\n<i>${error.message}</i>\n\nSilakan coba lagi nanti.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        }
     }
 };
 

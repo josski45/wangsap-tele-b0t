@@ -33,38 +33,52 @@ const ownerCommands = {
 
     /**
      * Command: /broadcast <pesan>
-     * Kirim pesan ke semua user (support multi-line)
+     * Kirim pesan ke semua user (support multi-line & image)
+     * Reply ke foto untuk broadcast foto dengan caption
+     * Atau upload foto langsung dengan caption /broadcast <message>
      */
     async broadcast(bot, msg, args, rawText) {
         try {
-            console.log('🎯 Broadcast function called!');
-            console.log('🎯 rawText:', rawText);
-            console.log('🎯 args:', args);
             
-            // rawText = full text setelah command (termasuk newlines)
-            // Fallback ke args.join(' ') jika rawText kosong
-            let message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+            // Cek apakah ada foto (reply ke foto atau langsung kirim foto)
+            let photoFileId = null;
+            let message = '';
             
-            console.log('🎯 Final message:', JSON.stringify(message));
+            // Priority 1: Cek foto langsung di message (upload foto dengan caption)
+            if (msg.photo && msg.photo.length > 0) {
+                const photos = msg.photo;
+                photoFileId = photos[photos.length - 1].file_id; // Ambil resolusi tertinggi
+                // Message diambil dari rawText (caption setelah /broadcast)
+                message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+            }
+            // Priority 2: Cek reply ke foto
+            else if (msg.reply_to_message && msg.reply_to_message.photo) {
+                const photos = msg.reply_to_message.photo;
+                photoFileId = photos[photos.length - 1].file_id;
+                // Message dari command atau caption foto yang direply
+                message = (rawText && rawText.trim().length > 0) ? rawText : 
+                          (args.length > 0 ? args.join(' ') : msg.reply_to_message.caption || '');
+            }
+            // Priority 3: Text only
+            else {
+                message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+            }
             
-            if (!message || message.trim().length === 0) {
+            // Jika tidak ada pesan dan tidak ada foto
+            if ((!message || message.trim().length === 0) && !photoFileId) {
                 await bot.sendMessage(msg.chat.id,
-                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b> Pesan bisa multi-line`,
+                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b>\n- Pesan bisa multi-line\n- Reply ke foto untuk broadcast foto + caption`,
                     { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
                 );
                 return;
             }
 
             // Trim hanya leading/trailing whitespace, preserve internal newlines
-            message = message.trim();
+            message = (message || '').trim();
             const users = db.getAllUsers();
 
-            // Debug log untuk cek apakah newlines preserved
-            console.log('📢 Broadcast message (raw):', JSON.stringify(message));
-            console.log('📢 Broadcast message has newlines:', message.includes('\n'));
-
             await bot.sendMessage(msg.chat.id,
-                `📢 Mengirim ke <b>${users.length} user</b>...\n\n<i>Preview:</i>\n<code>${formatter.escapeHtml(message.substring(0, 100))}${message.length > 100 ? '...' : ''}</code>`,
+                `📢 Mengirim ${photoFileId ? '📷 foto' : '📝 pesan'} ke <b>${users.length} user</b>...`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
 
@@ -73,28 +87,26 @@ const ownerCommands = {
 
             for (const user of users) {
                 try {
-                    // Plain text mode - no formatting, 100% preserve newlines
-                    const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
-                    
-                    // Debug: cek apakah broadcastText ada newlines
-                    console.log('📤 Sending to user:', user.user_id);
-                    console.log('📤 Message:', JSON.stringify(broadcastText));
-                    console.log('📤 Has newlines:', broadcastText.includes('\n'));
-                    
-                    // Tanpa parse_mode = plain text, dijamin newlines preserved
-                    await bot.sendMessage(user.user_id, broadcastText);
+                    if (photoFileId) {
+                        // Broadcast dengan foto
+                        const caption = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
+                        await bot.sendPhoto(user.user_id, photoFileId, { caption });
+                    } else {
+                        // Broadcast text biasa
+                        const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
+                        await bot.sendMessage(user.user_id, broadcastText);
+                    }
                     successCount++;
                     
                     // Delay untuk anti-ban
                     await new Promise(resolve => setTimeout(resolve, 100));
                 } catch (error) {
-                    console.error('Error sending to user:', user.user_id, error.message);
                     failCount++;
                 }
             }
 
             await bot.sendMessage(msg.chat.id,
-                `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
+                `✅ <b>BROADCAST SELESAI</b>\n\n${photoFileId ? '📷 Dengan Foto\n' : ''}✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
         } catch (error) {
@@ -571,56 +583,6 @@ const ownerCommands = {
             parse_mode: 'HTML',
             reply_to_message_id: msg.message_id 
         });
-    },
-
-    /**
-     * Command: /broadcast <pesan>
-     * Support multi-line dengan rawText parameter
-     */
-    async broadcast(bot, msg, args, rawText) {
-        try {
-            // Gunakan rawText (preserve newlines) atau fallback ke args.join
-            let message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
-            
-            if (!message || message.trim().length === 0) {
-                await bot.sendMessage(msg.chat.id,
-                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>`,
-                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-                );
-                return;
-            }
-
-            message = message.trim();
-            const users = db.getAllUsers();
-
-            await bot.sendMessage(msg.chat.id,
-                `📢 Mengirim ke <b>${users.length} user</b>...`,
-                { parse_mode: 'HTML' }
-            );
-
-            let successCount = 0;
-            let failCount = 0;
-
-            for (const user of users) {
-                try {
-                    // Plain text mode - preserve newlines
-                    const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
-                    
-                    await bot.sendMessage(user.user_id, broadcastText);
-                    successCount++;
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (error) {
-                    failCount++;
-                }
-            }
-
-            await bot.sendMessage(msg.chat.id,
-                `✅ <b>BROADCAST SELESAI</b>\n\n✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-        } catch (error) {
-            console.error('❌ Broadcast error:', error);
-        }
     },
 
     /**

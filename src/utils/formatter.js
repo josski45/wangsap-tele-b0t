@@ -92,6 +92,7 @@ function menuMessage() {
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
+    const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
 
     return `
 ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
@@ -108,6 +109,7 @@ ${LINE.sep}
 🚗 /nopol • <code>${nopolCost} token</code>
 📱 /regnik • <code>${regnikCost} token</code>
 📱 /regsim • <code>${regsimCost} token</code>
+🔓 /databocor • <code>${databocorCost} token</code>
 
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
@@ -138,6 +140,7 @@ function helpMessage() {
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
+    const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
     const riwayatDays = parseInt(settings.riwayat_days) || config.riwayatDays;
     const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
@@ -188,7 +191,11 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${regsimCost} token</code>
    Data: NIK dari Nomor HP
 
-📋 <b>/riwayat</b>
+� <b>/databocor</b> &lt;query&gt;
+   Biaya: <code>${databocorCost} token</code>
+   Data: Leak OSINT (email/phone/name/domain)
+
+�📋 <b>/riwayat</b>
    Biaya: <code>GRATIS</code>
    Data: ${riwayatDays} hari terakhir
 

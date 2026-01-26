@@ -52,13 +52,34 @@ async function startBot() {
         // ═══════════════════════════════════════════
         bot.on('message', async (msg) => {
             try {
-                // Ignore non-text messages
-                if (!msg.text) return;
+                // Debug: Log message structure
+                if (msg.photo || msg.caption) {
+                    console.log('[DEBUG] Photo message detected:');
+                    console.log('  - has photo:', !!msg.photo);
+                    console.log('  - caption:', msg.caption);
+                    console.log('  - text:', msg.text);
+                }
+                
+                // Extract text from message or caption
+                let text = (msg.text || msg.caption || '').trim();
+                
+                // Ignore if no text/caption
+                if (!text) return;
                 
                 // Ignore group messages (optional, bisa diubah)
                 if (msg.chat.type !== 'private') return;
                 
-                const text = msg.text.trim();
+                // Handle keyboard button text commands (map to actual commands)
+                const keyboardMapping = {
+                    '💳 Deposit': '/deposit',
+                    '🪙 Saldo': '/saldo',
+                    '📋 Menu': '/menu',
+                    '❓ Bantuan': '/bantuan'
+                };
+                
+                if (keyboardMapping[text]) {
+                    text = keyboardMapping[text];
+                }
                 
                 // Check for command (starts with /)
                 if (!text.startsWith('/')) return;
@@ -124,9 +145,10 @@ async function startBot() {
 
             } catch (error) {
                 console.error('❌ Error handling message:', error.message);
+                console.error('❌ Error stack:', error.stack);
                 try {
                     await bot.sendMessage(msg.chat.id,
-                        '❌ <b>Terjadi Kesalahan</b>\nSilakan coba lagi nanti',
+                        `❌ <b>Terjadi Kesalahan</b>\n\n<code>${error.message}</code>\n\nSilakan coba lagi nanti`,
                         { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
                     );
                 } catch (e) {

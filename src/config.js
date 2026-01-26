@@ -49,9 +49,14 @@ module.exports = {
     nopolCost: parseInt(process.env.NOPOL_COST) || 3,
     regnikCost: parseInt(process.env.REGNIK_COST) || 3,
     regsimCost: parseInt(process.env.REGSIM_COST) || 3,
+    databocorCost: parseInt(process.env.DATABOCOR_COST) || 3,
     riwayatCost: parseFloat(process.env.RIWAYAT_COST) || 0,
     getdataCost: parseFloat(process.env.GETDATA_COST) || 0.5,
     riwayatDays: parseInt(process.env.RIWAYAT_DAYS) || 10,
+    
+    // LeakOSINT API (untuk /databocor)
+    leakosintApiUrl: process.env.LEAKOSINT_API_URL || 'https://leakosintapi.com/',
+    leakosintToken: process.env.LEAKOSINT_TOKEN || '6755393038:mSL1e8JU',
     
     // Bot settings
     botName: process.env.BOT_NAME || 'NIK Validator Bot',
