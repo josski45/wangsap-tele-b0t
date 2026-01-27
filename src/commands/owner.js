@@ -666,7 +666,7 @@ const ownerCommands = {
     async setcost(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: check, nama, kk, foto, edabu, bpjstk, nopol, regnik, regsim, getdata\nContoh: <code>/setcost check 2</code>`,
+                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: check, nama, kk, foto, edabu, bpjstk, nopol, regnik, regsim, databocor, getdata\nContoh: <code>/setcost check 2</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -675,7 +675,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'getdata'];
+        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getdata'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -755,6 +755,7 @@ const ownerCommands = {
         const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
         const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
         const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
+        const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
         const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
         
         const mtCeknik = settings.mt_ceknik === 'true' ? '🔴 ON' : '🟢 OFF';
@@ -780,6 +781,7 @@ const ownerCommands = {
         text += `nopol: ${nopolCost}t\n`;
         text += `regnik: ${regnikCost}t\n`;
         text += `regsim: ${regsimCost}t\n`;
+        text += `databocor: ${databocorCost}t\n`;
         text += `getdata: ${getdataCost}t\n`;
         
         text += '\n<b>━━━ 🛠️ MAINTENANCE ━━━</b>\n';
