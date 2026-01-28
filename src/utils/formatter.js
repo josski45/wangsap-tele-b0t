@@ -93,6 +93,7 @@ function menuMessage() {
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
+    const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
 
     return `
 ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
@@ -110,6 +111,7 @@ ${LINE.sep}
 📱 /regnik • <code>${regnikCost} token</code>
 📱 /regsim • <code>${regsimCost} token</code>
 🔓 /databocor • <code>${databocorCost} token</code>
+📱 /getcontact • <code>${getcontactCost} token</code>
 
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
@@ -141,6 +143,7 @@ function helpMessage() {
     const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
+    const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
     const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
     const riwayatDays = parseInt(settings.riwayat_days) || config.riwayatDays;
     const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
@@ -195,6 +198,10 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${databocorCost} token</code>
    Data: Leak OSINT (email/phone/name/domain)
 
+📱 <b>/getcontact</b> &lt;HP&gt;
+   Biaya: <code>${getcontactCost} token</code>
+   Data: Multi-source caller ID lookup
+
 �📋 <b>/riwayat</b>
    Biaya: <code>GRATIS</code>
    Data: ${riwayatDays} hari terakhir
@@ -227,7 +234,20 @@ Bot pencarian data NIK Indonesia.
 🪙 Saldo: <b>${tokenBalance} token</b>
 📊 Cek Hari Ini: <b>${todayChecks}x</b>
 
-<i>Ketik /menu untuk mulai</i>
+${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
+🔍 /ceknik - Cek NIK Basic
+👤 /nama - Cari berdasarkan Nama
+👨‍👩‍👧‍👦 /kk - Cek Kartu Keluarga
+📷 /foto - NIK + Foto KTP
+🏥 /edabu - Cek BPJS Kesehatan
+👷 /bpjstk - Cek BPJS TK
+🚗 /nopol - Cek Plat Kendaraan
+📱 /regnik - NIK ke Nomor HP
+📱 /regsim - Nomor HP ke NIK
+🔓 /databocor - Leak OSINT
+📱 /getcontact - Caller ID Lookup
+
+<i>Ketik /menu untuk info lengkap</i>
 `;
 }
 

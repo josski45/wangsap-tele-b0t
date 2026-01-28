@@ -11,6 +11,24 @@ const userCommands = require('./commands/user');
 const ownerCommands = require('./commands/owner');
 const { isOwner, rateLimiter } = require('./utils/helper');
 
+// Pending commands storage untuk Telegram
+global.pendingCommands = new Map();
+
+// Command prompts dictionary
+const commandPrompts = {
+    'ceknik': '📝 Silakan kirim *NIK 16 digit* yang ingin dicek:',
+    'nama': '📝 Silakan kirim *Nama* yang ingin dicari:',
+    'kk': '📝 Silakan kirim *Nomor KK 16 digit* yang ingin dicek:',
+    'foto': '📝 Silakan kirim *NIK 16 digit* untuk melihat foto:',
+    'edabu': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS:',
+    'bpjstk': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS TK:',
+    'nopol': '📝 Silakan kirim *Plat Nomor* yang ingin dicek (contoh: B1234XYZ):',
+    'regnik': '📝 Silakan kirim *NIK 16 digit* untuk mencari nomor HP:',
+    'regsim': '📝 Silakan kirim *Nomor HP* untuk mencari NIK (contoh: 081234567890):',
+    'databocor': '📝 Silakan kirim *query* (email/phone/name/domain) untuk dicari:',
+    'getcontact': '📝 Silakan kirim *Nomor HP* untuk lookup caller ID (contoh: 081234567890):'
+};
+
 // Banner
 console.log('');
 console.log('╔══════════════════════════════════════════════════╗');
@@ -81,8 +99,33 @@ async function startBot() {
                     text = keyboardMapping[text];
                 }
                 
-                // Check for command (starts with /)
-                if (!text.startsWith('/')) return;
+                // Check for pending command (non-command message)
+                if (!text.startsWith('/')) {
+                    const userId = msg.from.id;
+                    const pending = global.pendingCommands.get(userId);
+                    
+                    if (pending && (Date.now() - pending.timestamp < 5 * 60 * 1000)) {
+                        // Delete prompt message
+                        if (pending.promptMessageId && pending.chatId) {
+                            await bot.deleteMessage(pending.chatId, pending.promptMessageId).catch(() => {});
+                        }
+                        
+                        // Execute pending command with this input
+                        const commandName = pending.command;
+                        global.pendingCommands.delete(userId);
+                        
+                        console.log(`📩 [PENDING] ${msg.from.username || msg.from.first_name}: /${commandName} ${text}`);
+                        
+                        if (userCommands[commandName]) {
+                            await userCommands[commandName](bot, msg, [text]);
+                        }
+                        return;
+                    }
+                    return;
+                }
+                
+                // Clear pending command if user sends a new command
+                global.pendingCommands.delete(msg.from.id);
                 
                 // Parse command dan arguments
                 const parts = text.split(/\s+/);
@@ -590,6 +633,81 @@ async function startBot() {
                         text: `${emoji} Status: ${text}`,
                         show_alert: true
                     });
+                    return;
+                }
+                
+                // ═══════════════════════════════════════════
+                // MENU FEATURE SELECTION HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('menu_')) {
+                    const command = data.replace('menu_', '');
+                    
+                    // Get command prompt
+                    const prompt = commandPrompts[command];
+                    
+                    if (prompt) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: `📝 Silakan kirim input untuk /${command}`
+                        });
+                        
+                        // Send prompt message
+                        const promptMsg = await bot.sendMessage(chatId, prompt, {
+                            parse_mode: 'Markdown',
+                            reply_markup: {
+                                inline_keyboard: [[
+                                    { text: '❌ Batal', callback_data: `menu_cancel_${userId}` }
+                                ]]
+                            }
+                        });
+                        
+                        // Save pending command with prompt messageId
+                        global.pendingCommands.set(userId, {
+                            command: command,
+                            timestamp: Date.now(),
+                            promptMessageId: promptMsg.message_id,
+                            chatId: chatId
+                        });
+                    } else {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: `❌ Command tidak dikenal: ${command}`,
+                            show_alert: true
+                        });
+                    }
+                    return;
+                }
+                
+                // Cancel pending command
+                if (data.startsWith('menu_cancel_')) {
+                    const targetUserId = parseInt(data.split('_')[2]);
+                    if (targetUserId === userId) {
+                        global.pendingCommands.delete(userId);
+                        await bot.answerCallbackQuery(query.id, { text: '✅ Dibatalkan' });
+                        await bot.deleteMessage(chatId, messageId).catch(() => {});
+                    }
+                    return;
+                }
+                
+                // Goto deposit handler
+                if (data === 'goto_deposit') {
+                    await bot.answerCallbackQuery(query.id);
+                    const fakeMsg = {
+                        chat: { id: chatId },
+                        from: query.from,
+                        message_id: messageId
+                    };
+                    await userCommands.deposit(bot, fakeMsg, []);
+                    return;
+                }
+                
+                // Goto saldo handler
+                if (data === 'goto_saldo') {
+                    await bot.answerCallbackQuery(query.id);
+                    const fakeMsg = {
+                        chat: { id: chatId },
+                        from: query.from,
+                        message_id: messageId
+                    };
+                    await userCommands.saldo(bot, fakeMsg);
                     return;
                 }
                 

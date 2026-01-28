@@ -104,13 +104,67 @@ const userCommands = {
     },
 
     /**
-     * Command: /menu
+     * Command: /menu - Show interactive menu with inline buttons
      */
     async menu(bot, msg) {
-        const text = formatter.menuMessage();
+        const userId = msg.from.id;
+        const settings = db.getAllSettings();
+        
+        // Get all costs from settings
+        const checkCost = parseInt(settings.check_cost) || config.checkCost;
+        const namaCost = parseInt(settings.nama_cost) || config.namaCost;
+        const kkCost = parseInt(settings.kk_cost) || config.kkCost;
+        const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
+        const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
+        const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
+        const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+        const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
+        const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
+        const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
+        const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
+        
+        const text = `📋 <b>MENU PENCARIAN</b>
+
+Pilih fitur yang ingin digunakan:
+<i>(Tap tombol untuk memulai)</i>`;
+        
+        // Build inline keyboard with costs
+        const inlineKeyboard = [
+            [
+                { text: `🔍 CekNIK (${checkCost}t)`, callback_data: 'menu_ceknik' },
+                { text: `👤 Nama (${namaCost}t)`, callback_data: 'menu_nama' }
+            ],
+            [
+                { text: `👨‍👩‍👧‍👦 KK (${kkCost}t)`, callback_data: 'menu_kk' },
+                { text: `📷 Foto (${fotoCost}t)`, callback_data: 'menu_foto' }
+            ],
+            [
+                { text: `🏥 BPJS (${edabuCost}t)`, callback_data: 'menu_edabu' },
+                { text: `👷 BPJS TK (${bpjstkCost}t)`, callback_data: 'menu_bpjstk' }
+            ],
+            [
+                { text: `🚗 Nopol (${nopolCost}t)`, callback_data: 'menu_nopol' },
+                { text: `📱 RegNIK (${regnikCost}t)`, callback_data: 'menu_regnik' }
+            ],
+            [
+                { text: `📱 RegSIM (${regsimCost}t)`, callback_data: 'menu_regsim' },
+                { text: `🔓 DataBocor (${databocorCost}t)`, callback_data: 'menu_databocor' }
+            ],
+            [
+                { text: `📱 GetContact (${getcontactCost}t)`, callback_data: 'menu_getcontact' }
+            ],
+            [
+                { text: '💳 Deposit', callback_data: 'goto_deposit' },
+                { text: '🪙 Saldo', callback_data: 'goto_saldo' }
+            ]
+        ];
+        
         await bot.sendMessage(msg.chat.id, text, { 
             parse_mode: 'HTML',
-            reply_to_message_id: msg.message_id 
+            reply_to_message_id: msg.message_id,
+            reply_markup: {
+                inline_keyboard: inlineKeyboard
+            }
         });
     },
 
@@ -2032,6 +2086,206 @@ const userCommands = {
             
         } catch (error) {
             console.error('❌ DATABOCOR ERROR:', error.message);
+            await bot.deleteMessage(msg.chat.id, processingMsg.message_id).catch(() => {});
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Terjadi Kesalahan</b>\n\n<i>${error.message}</i>\n\nSilakan coba lagi nanti.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+        }
+    },
+    
+    /**
+     * Command: /getcontact <phone>
+     * Cari nama dari nomor HP via multiple sources
+     */
+    async getcontact(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+        
+        if (!checkCooldown(userId, 'getcontact', 5000)) return;
+        
+        const user = db.getOrCreateUser(userId, username, firstName);
+        
+        // Cek maintenance mode
+        const settings = db.getAllSettings();
+        if (settings.maintenance_mode === '1') {
+            await bot.sendMessage(msg.chat.id, 
+                `⚠️ <b>Mode Maintenance</b>\n\nFitur getcontact sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        // Cek input
+        if (!args || args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `📱 <b>GetContact - Lookup Nomor HP</b>\n\n` +
+                `Gunakan: <code>/getcontact [nomor_hp]</code>\n\n` +
+                `Contoh:\n` +
+                `• <code>/getcontact 081234567890</code>\n` +
+                `• <code>/getcontact +6281234567890</code>\n\n` +
+                `💰 Biaya: <b>${config.getcontactCost} token</b>\n` +
+                `🪙 Saldo: <b>${user.token_balance} token</b>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        // Clean phone number
+        let phoneNumber = args[0].replace(/[^0-9+]/g, '');
+        if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.slice(1);
+        if (phoneNumber.startsWith('0')) phoneNumber = '62' + phoneNumber.slice(1);
+        
+        // Validasi nomor HP
+        if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Nomor HP Tidak Valid</b>\n\nPastikan nomor HP benar (10-15 digit).`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        // Cek saldo
+        if (user.token_balance < config.getcontactCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${config.getcontactCost} token</b>\n\nSilakan deposit terlebih dahulu dengan /deposit`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        // Processing message
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `🔍 <b>Mencari info nomor...</b>\n\n📱 ${phoneNumber}\n\n⏳ Mohon tunggu, mengecek dari berbagai sumber...`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+        
+        try {
+            // Call GetContact API
+            const response = await axios.post(config.getcontactApiUrl, {
+                phoneNumber: phoneNumber,
+                key: config.getcontactKey
+            }, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+                    'Content-Type': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Origin': 'https://data-publik.com',
+                    'Referer': 'https://data-publik.com/getcontact-multi'
+                },
+                timeout: 30000
+            });
+            
+            await bot.deleteMessage(msg.chat.id, processingMsg.message_id).catch(() => {});
+            
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'API request failed');
+            }
+            
+            const data = response.data.data;
+            const sources = data.sources || [];
+            
+            // Deduct tokens
+            console.log(`💰 [GETCONTACT] Token before: ${user.token_balance}`);
+            db.deductTokens(userId, config.getcontactCost);
+            const newBalance = db.getUser(userId)?.token_balance || 0;
+            console.log(`💰 [GETCONTACT] Token after: ${newBalance} (-${config.getcontactCost})`);
+            
+            // Create request record
+            const requestId = db.createApiRequest(userId, 'getcontact', phoneNumber, 'getcontact', config.getcontactCost);
+            db.updateApiRequest(requestId, 'completed', JSON.stringify(data));
+            
+            // Build response text
+            let fileContent = `${'='.repeat(50)}\n`;
+            fileContent += `       GETCONTACT RESULT - Multi Source\n`;
+            fileContent += `${'='.repeat(50)}\n\n`;
+            fileContent += `Request ID: ${requestId}\n`;
+            fileContent += `Phone Number: ${data.request || phoneNumber}\n`;
+            fileContent += `Generated: ${new Date().toLocaleString('id-ID')}\n\n`;
+            
+            let successSources = 0;
+            let primaryName = null;
+            let tags = [];
+            let avatar = null;
+            
+            for (const source of sources) {
+                const result = source.results?.response;
+                const status = source.results?.statusCode;
+                const sourceName = source.source?.toUpperCase() || 'UNKNOWN';
+                
+                if (status === 200 && result && !result.error) {
+                    successSources++;
+                    fileContent += `${'─'.repeat(40)}\n`;
+                    fileContent += `📌 SOURCE: ${sourceName}\n`;
+                    fileContent += `${'─'.repeat(40)}\n`;
+                    
+                    if (result.name) {
+                        fileContent += `👤 Nama: ${result.name}\n`;
+                        if (!primaryName) primaryName = result.name;
+                    }
+                    if (result.displayName) {
+                        fileContent += `👤 Display Name: ${result.displayName}\n`;
+                        if (!primaryName) primaryName = result.displayName;
+                    }
+                    if (result.operator) {
+                        fileContent += `📡 Operator: ${result.operator}\n`;
+                    }
+                    if (result.urlAvatar || result.avatar || result.profileImage) {
+                        avatar = result.urlAvatar || result.avatar || result.profileImage;
+                        fileContent += `🖼️ Avatar: ${avatar}\n`;
+                    }
+                    if (result.extra?.profileImage) {
+                        avatar = result.extra.profileImage;
+                        fileContent += `🖼️ Profile: ${avatar}\n`;
+                    }
+                    if (result.networks && result.networks.length > 0) {
+                        fileContent += `🌐 Networks: ${result.networks.join(', ')}\n`;
+                    }
+                    
+                    // Handle tags from getcontact source - tampilkan semua
+                    if (result.extra?.tags && result.extra.tags.length > 0) {
+                        fileContent += `\n📋 TAGS (${result.extra.tagCount || result.extra.tags.length} total):\n`;
+                        for (const t of result.extra.tags) {
+                            fileContent += `   • ${t.tag} (${t.count}x)\n`;
+                            tags.push(t.tag);
+                        }
+                    }
+                    fileContent += `\n`;
+                }
+            }
+            
+            if (successSources === 0) {
+                fileContent += `\n❌ Tidak ditemukan data untuk nomor ini.\n`;
+            }
+            
+            fileContent += `\n${'='.repeat(50)}\n`;
+            fileContent += `Sources checked: ${sources.length}\n`;
+            fileContent += `Success: ${successSources}\n`;
+            fileContent += `Cost: -${config.getcontactCost} token | Saldo: ${newBalance} token\n`;
+            fileContent += `${'='.repeat(50)}\n`;
+            
+            // Build summary caption
+            let caption = `📱 <b>GetContact Result</b>\n\n`;
+            caption += `📞 <b>Nomor:</b> ${data.request || phoneNumber}\n`;
+            if (primaryName) caption += `👤 <b>Nama:</b> ${primaryName}\n`;
+            if (tags.length > 0) caption += `🏷️ <b>Top Tags:</b> ${tags.slice(0, 5).join(', ')}\n`;
+            caption += `\n📊 <b>${successSources}/${sources.length}</b> sumber ditemukan\n`;
+            caption += `🆔 ID: <code>${requestId}</code>\n`;
+            caption += `💰 -${config.getcontactCost} token | Sisa: ${newBalance}`;
+            
+            const fileName = `getcontact_${phoneNumber}_${Date.now()}.txt`;
+            await bot.sendDocument(msg.chat.id, Buffer.from(fileContent, 'utf-8'), {
+                caption: caption,
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            }, {
+                filename: fileName,
+                contentType: 'text/plain'
+            });
+            
+        } catch (error) {
+            console.error('❌ GETCONTACT ERROR:', error.message);
             await bot.deleteMessage(msg.chat.id, processingMsg.message_id).catch(() => {});
             await bot.sendMessage(msg.chat.id,
                 `❌ <b>Terjadi Kesalahan</b>\n\n<i>${error.message}</i>\n\nSilakan coba lagi nanti.`,

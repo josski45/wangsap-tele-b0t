@@ -608,7 +608,7 @@ const ownerCommands = {
             return;
         }
 
-        const validFeatures = ['all', 'ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim'];
+        const validFeatures = ['all', 'ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'getcontact'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -675,7 +675,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getdata'];
+        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getcontact', 'getdata'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -756,6 +756,7 @@ const ownerCommands = {
         const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
         const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
         const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
+        const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
         const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
         
         const mtCeknik = settings.mt_ceknik === 'true' ? '🔴 ON' : '🟢 OFF';
@@ -782,6 +783,7 @@ const ownerCommands = {
         text += `regnik: ${regnikCost}t\n`;
         text += `regsim: ${regsimCost}t\n`;
         text += `databocor: ${databocorCost}t\n`;
+        text += `getcontact: ${getcontactCost}t\n`;
         text += `getdata: ${getdataCost}t\n`;
         
         text += '\n<b>━━━ 🛠️ MAINTENANCE ━━━</b>\n';

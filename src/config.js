@@ -58,6 +58,11 @@ module.exports = {
     leakosintApiUrl: process.env.LEAKOSINT_API_URL || 'https://leakosintapi.com/',
     leakosintToken: process.env.LEAKOSINT_TOKEN || '6755393038:mSL1e8JU',
     
+    // GetContact API (untuk /getcontact)
+    getcontactApiUrl: process.env.GETCONTACT_API_URL || 'https://data-publik.com/api/getcontact/multisource',
+    getcontactKey: process.env.GETCONTACT_KEY || 'VOXGVUP',
+    getcontactCost: parseInt(process.env.GETCONTACT_COST) || 3,
+    
     // Bot settings
     botName: process.env.BOT_NAME || 'NIK Validator Bot',
     prefix: '/', // Telegram uses slash commands
