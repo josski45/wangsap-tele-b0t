@@ -881,15 +881,34 @@ Pilih fitur yang ingin digunakan:
             }
         }
 
-        let text = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken, nikAddresses);
-        if (result.fromCache) {
-            text = `📦 <i>Data dari SIGMABOY</i>\n\n` + text;
+        let textResult = formatter.edabuResultMessage(result.data, edabuCost, requestId, remainingToken, nikAddresses);
+        
+        // Handle multiple messages if result is array (long content)
+        if (Array.isArray(textResult)) {
+            // Edit processing msg with first message
+            let firstMsg = result.fromCache ? `📦 <i>Data dari SIGMABOY</i>\n\n` + textResult[0] : textResult[0];
+            await bot.editMessageText(firstMsg, {
+                chat_id: msg.chat.id,
+                message_id: processingMsg.message_id,
+                parse_mode: 'HTML'
+            });
+            // Send remaining messages
+            for (let i = 1; i < textResult.length; i++) {
+                await bot.sendMessage(msg.chat.id, textResult[i], {
+                    parse_mode: 'HTML',
+                    reply_to_message_id: msg.message_id
+                });
+            }
+        } else {
+            if (result.fromCache) {
+                textResult = `📦 <i>Data dari SIGMABOY</i>\n\n` + textResult;
+            }
+            await bot.editMessageText(textResult, {
+                chat_id: msg.chat.id,
+                message_id: processingMsg.message_id,
+                parse_mode: 'HTML'
+            });
         }
-        await bot.editMessageText(text, {
-            chat_id: msg.chat.id,
-            message_id: processingMsg.message_id,
-            parse_mode: 'HTML'
-        });
     },
 
     /**

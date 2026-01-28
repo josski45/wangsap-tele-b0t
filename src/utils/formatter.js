@@ -513,7 +513,93 @@ ${LINE.double}
 }
 
 // ═══════════════════════════════════════════
-// EDABU RESULT MESSAGE (BPJS Kesehatan)
+// BPJS REFERENCE DATA
+// ═══════════════════════════════════════════
+const BPJS_REF = {
+    JENIS_KELAMIN: {
+        "1": "Laki-laki",
+        "2": "Perempuan"
+    },
+    HUBUNGAN_KELUARGA: {
+        "00": "Diri Sendiri",
+        "10": "Suami/Istri",
+        "4": "Anak",
+        "11": "Anak 1",
+        "12": "Anak 2",
+        "13": "Anak 3",
+        "14": "Anak 4",
+        "15": "Anak 5",
+        "16": "Anak 6",
+        "17": "Anak 7",
+        "18": "Anak 8",
+        "19": "Anak 9",
+        "21": "Anak 1 (Istri/Suami Kedua)",
+        "22": "Anak 2 (Istri/Suami Kedua)",
+        "23": "Anak 3 (Istri/Suami Kedua)",
+        "24": "Anak 4 (Istri/Suami Kedua)",
+        "25": "Anak 5 (Istri/Suami Kedua)",
+        "26": "Anak 6 (Istri/Suami Kedua)",
+        "27": "Anak 7 (Istri/Suami Kedua)",
+        "28": "Anak 8 (Istri/Suami Kedua)",
+        "29": "Anak 9 (Istri/Suami Kedua)",
+        "30": "Ayah",
+        "31": "Ibu",
+        "32": "Mertua Ayah",
+        "33": "Mertua Ibu",
+        "41": "Anak Tiri 1",
+        "42": "Anak Tiri 2",
+        "43": "Anak Tiri 3",
+        "44": "Anak Tiri 4",
+        "45": "Anak Tiri 5"
+    },
+    JENIS_PESERTA_GRUP: {
+        "1": "PPU Penyelenggara Negara",
+        "2": "PPU Badan Usaha",
+        "3": "PBPU/BP",
+        "4": "PBI JK"
+    },
+    JENIS_PESERTA_DETIL: {
+        "11": "PNS Pusat",
+        "12": "PNS Daerah",
+        "13": "PNS TNI",
+        "14": "PNS Polri",
+        "15": "PNS Diperbantukan",
+        "16": "PNS Dipekerjakan",
+        "17": "Pejabat Negara",
+        "18": "Kepala Desa",
+        "19": "PPNPN (Pegawai Pemerintah Non PNS)",
+        "21": "Prajurit TNI",
+        "22": "Prajurit Polri",
+        "23": "Penerima Pensiun PNS",
+        "24": "Penerima Pensiun TNI",
+        "25": "Penerima Pensiun Polri",
+        "26": "Penerima Pensiun Pejabat Negara",
+        "27": "Veteran",
+        "28": "Perintis Kemerdekaan",
+        "31": "BUMN",
+        "32": "BUMD",
+        "33": "Badan Usaha Swasta",
+        "41": "PBPU (Pekerja Bukan Penerima Upah)",
+        "42": "BP (Bukan Pekerja)",
+        "51": "PBI JK (Penerima Bantuan Iuran)",
+        "52": "Non PBI"
+    },
+    STATUS_KAWIN: {
+        "0": "Tidak Terdefinisi",
+        "1": "Belum Kawin",
+        "2": "Kawin",
+        "3": "Cerai",
+        "4": "Cerai Mati"
+    },
+    STATUS_PESERTA: {
+        "0": "Aktif",
+        "1": "Non Aktif"
+    }
+};
+
+// ═══════════════════════════════════════════
+// EDABU RESULT MESSAGE (BPJS Kesehatan) with BPJS bridging
+// Returns array of messages if content is too long
 // ═══════════════════════════════════════════
 function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, nikAddresses = {}) {
     const anggota = data?.anggota || [];
@@ -522,10 +608,23 @@ function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0,
     const jumlahAnggota = data?.jumlah_anggota || anggota.length;
     const alamat = data?.alamat || '-';
     
-    // Function to get hubungan keluarga from raw data
+    // Function to get hubungan keluarga from raw data with bridging
     const getHubungan = (nik) => {
         const rawData = raw.find(r => r.NIK === nik);
-        return rawData?.NMHUBKEL || '-';
+        if (!rawData) return '-';
+        const kode = rawData.KDHUBKEL?.toString();
+        return BPJS_REF.HUBUNGAN_KELUARGA[kode] || rawData.NMHUBKEL || '-';
+    };
+    
+    // Function to get jenis peserta detail
+    const getJenisPeserta = (nik) => {
+        const rawData = raw.find(r => r.NIK === nik);
+        if (!rawData?.JNSPST) return '-';
+        const kodeGrup = rawData.JNSPST.KDJNSKPST?.toString();
+        const kodeDetil = rawData.JNSPST.KDJNSPESERTA?.toString();
+        const grupName = BPJS_REF.JENIS_PESERTA_GRUP[kodeGrup] || '';
+        const detilName = BPJS_REF.JENIS_PESERTA_DETIL[kodeDetil] || '';
+        return detilName || grupName || '-';
     };
     
     // Function to get perusahaan from raw data
@@ -541,7 +640,8 @@ function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0,
         return addr.alamat_lengkap || '-';
     };
     
-    let msg = `
+    // Build header
+    let header = `
 ${EMOJI.hospital} <b>HASIL CEK BPJS</b>
 ${LINE.double}
 
@@ -549,13 +649,17 @@ ${LINE.double}
 👥 Jumlah Anggota: <b>${jumlahAnggota}</b>
 `;
 
+    // Build member sections
+    let memberSections = [];
     if (anggota.length > 0) {
         anggota.forEach((p, index) => {
             const hubungan = getHubungan(p.nik);
             const perusahaan = getPerusahaan(p.nik);
             const alamatAnggota = getAlamat(p.nik);
+            const jenisPeserta = getJenisPeserta(p.nik);
             const statusIcon = p.status?.toLowerCase().includes('aktif') ? '🟢' : '🔴';
-            msg += `
+            
+            let section = `
 ${LINE.sep}
 <b>ANGGOTA ${index + 1}</b> ( ${escapeHtml(hubungan.toLowerCase())} )
 ${LINE.thin}
@@ -568,20 +672,42 @@ ${LINE.thin}
 📱 No HP: ${escapeHtml(p.noHP || '-')}
 🏠 Alamat: ${escapeHtml(alamatAnggota)}
 💼 Status Hubungan: <b>${escapeHtml(hubungan || '-')}</b>
+📋 Jenis Peserta: <b>${escapeHtml(jenisPeserta)}</b>
 ${statusIcon} Status: <b>${escapeHtml(p.status || '-')}</b>
 🏢 Perusahaan: ${escapeHtml(perusahaan || '-')}
 `;
+            memberSections.push(section);
         });
     } else {
-        msg += '\n<i>Data BPJS tidak ditemukan</i>\n';
+        memberSections.push('\n<i>Data BPJS tidak ditemukan</i>\n');
     }
 
-    msg += `
+    const footer = `
 ${LINE.double}
 🆔 ID: <code>${requestId}</code>
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
-    return msg;
+    
+    // Combine and check length - Telegram limit 4096 chars
+    const MAX_MSG_LENGTH = 3800;
+    let messages = [];
+    let currentMsg = header;
+    
+    for (const section of memberSections) {
+        if ((currentMsg + section).length > MAX_MSG_LENGTH) {
+            messages.push(currentMsg);
+            currentMsg = `\n${EMOJI.hospital} <b>HASIL CEK BPJS (lanjutan)</b>\n${LINE.double}` + section;
+        } else {
+            currentMsg += section;
+        }
+    }
+    
+    // Add footer to last message
+    currentMsg += footer;
+    messages.push(currentMsg);
+    
+    // Return single string if only one message, array if multiple
+    return messages.length === 1 ? messages[0] : messages;
 }
 
 // ═══════════════════════════════════════════
