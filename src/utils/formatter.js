@@ -617,15 +617,16 @@ function edabuResultMessage(data, tokenUsed, requestId = '', remainingToken = 0,
     };
     
     // Function to get jenis peserta detail
-    const getJenisPeserta = (nik) => {
-        const rawData = raw.find(r => r.NIK === nik);
-        if (!rawData?.JNSPST) return '-';
-        const kodeGrup = rawData.JNSPST.KDJNSKPST?.toString();
-        const kodeDetil = rawData.JNSPST.KDJNSPESERTA?.toString();
-        const grupName = BPJS_REF.JENIS_PESERTA_GRUP[kodeGrup] || '';
-        const detilName = BPJS_REF.JENIS_PESERTA_DETIL[kodeDetil] || '';
-        return detilName || grupName || '-';
-    };
+    // COMMENTED: Plotting masih salah, perlu fix mapping
+    // const getJenisPeserta = (nik) => {
+    //     const rawData = raw.find(r => r.NIK === nik);
+    //     if (!rawData?.JNSPST) return '-';
+    //     const kodeGrup = rawData.JNSPST.KDJNSKPST?.toString();
+    //     const kodeDetil = rawData.JNSPST.KDJNSPESERTA?.toString();
+    //     const grupName = BPJS_REF.JENIS_PESERTA_GRUP[kodeGrup] || '';
+    //     const detilName = BPJS_REF.JENIS_PESERTA_DETIL[kodeDetil] || '';
+    //     return detilName || grupName || '-';
+    // };
     
     // Function to get perusahaan from raw data
     const getPerusahaan = (nik) => {
@@ -656,8 +657,27 @@ ${LINE.double}
             const hubungan = getHubungan(p.nik);
             const perusahaan = getPerusahaan(p.nik);
             const alamatAnggota = getAlamat(p.nik);
-            const jenisPeserta = getJenisPeserta(p.nik);
+            // const jenisPeserta = getJenisPeserta(p.nik); // COMMENTED: Plotting masih salah
             const statusIcon = p.status?.toLowerCase().includes('aktif') ? '🟢' : '🔴';
+            
+            // Fix tanggal lahir: API mundur 1 hari, perlu ditambah 1 hari
+            let ttlFixed = p.ttl || '-';
+            if (p.ttl && p.ttl !== '-') {
+                try {
+                    const ttlMatch = p.ttl.match(/(.*?),\s*(\d{2})-(\d{2})-(\d{4})/);
+                    if (ttlMatch) {
+                        const [, tempat, day, month, year] = ttlMatch;
+                        const date = new Date(year, month - 1, day);
+                        date.setDate(date.getDate() + 1); // Tambah 1 hari
+                        const fixedDay = String(date.getDate()).padStart(2, '0');
+                        const fixedMonth = String(date.getMonth() + 1).padStart(2, '0');
+                        const fixedYear = date.getFullYear();
+                        ttlFixed = `${tempat}, ${fixedDay}-${fixedMonth}-${fixedYear}`;
+                    }
+                } catch (e) {
+                    ttlFixed = p.ttl; // Fallback ke original jika error
+                }
+            }
             
             let section = `
 ${LINE.sep}
@@ -667,12 +687,11 @@ ${LINE.thin}
 🆔 NIK: <code>${p.nik || '-'}</code>
 💳 No Kartu: <code>${p.noKartu || '-'}</code>
 ⚧️ Jenis Kelamin: ${escapeHtml(p.jenisKelamin || '-')}
-📅 TTL: ${escapeHtml(p.ttl || '-')}
+📅 TTL: ${escapeHtml(ttlFixed)}
 📧 Email: ${escapeHtml(p.email || '-')}
 📱 No HP: ${escapeHtml(p.noHP || '-')}
 🏠 Alamat: ${escapeHtml(alamatAnggota)}
 💼 Status Hubungan: <b>${escapeHtml(hubungan || '-')}</b>
-📋 Jenis Peserta: <b>${escapeHtml(jenisPeserta)}</b>
 ${statusIcon} Status: <b>${escapeHtml(p.status || '-')}</b>
 🏢 Perusahaan: ${escapeHtml(perusahaan || '-')}
 `;
