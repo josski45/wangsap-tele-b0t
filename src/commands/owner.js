@@ -675,7 +675,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['check', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getcontact', 'getdata'];
+        const validFeatures = ['ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getcontact', 'getdata'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -692,7 +692,24 @@ const ownerCommands = {
             return;
         }
 
-        db.setSetting(`${feature}_cost`, cost);
+        // Map feature name to database key
+        const featureKeyMap = {
+            'ceknik': 'check_cost',
+            'nama': 'nama_cost',
+            'kk': 'kk_cost',
+            'foto': 'foto_cost',
+            'edabu': 'edabu_cost',
+            'bpjstk': 'bpjstk_cost',
+            'nopol': 'nopol_cost',
+            'regnik': 'regnik_cost',
+            'regsim': 'regsim_cost',
+            'databocor': 'databocor_cost',
+            'getcontact': 'getcontact_cost',
+            'getdata': 'getdata_cost'
+        };
+        
+        const settingKey = featureKeyMap[feature] || `${feature}_cost`;
+        db.setSetting(settingKey, cost);
 
         await bot.sendMessage(msg.chat.id,
             `✅ Biaya <b>${feature.toUpperCase()}</b> diubah ke <b>${cost} token</b>`,
