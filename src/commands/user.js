@@ -1555,23 +1555,23 @@ Pilih fitur yang ingin digunakan:
 
         // Create Order with fancy ID
         const orderId = paymentService.generateOrderId(userId);
-        const cashiResult = await paymentService.createQRISOrder(orderId, totalPrice);
+        const pakasirResult = await paymentService.createQRISOrder(orderId, totalPrice);
         
         // Delete "Loading..."
         await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
 
         let depositId;
         
-        if (!cashiResult.success) {
-            await bot.sendMessage(chatId, formatter.errorMessage('Gagal Membuat Deposit', cashiResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
+        if (!pakasirResult.success) {
+            await bot.sendMessage(chatId, formatter.errorMessage('Gagal Membuat Deposit', pakasirResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
             return;
         }
 
         // Save to DB
-        depositId = db.createDeposit(userId, totalPrice, tokenAmount, 'cashi', {
-            orderId: cashiResult.orderId,
-            checkoutUrl: cashiResult.checkoutUrl,
-            expiresAt: cashiResult.expiresAt
+        depositId = db.createDeposit(userId, totalPrice, tokenAmount, 'pakasir', {
+            orderId: pakasirResult.orderId,
+            checkoutUrl: pakasirResult.paymentUrl,
+            expiresAt: pakasirResult.expiresAt
         });
 
         // Build promo text if applicable
@@ -1589,28 +1589,27 @@ Pilih fitur yang ingin digunakan:
             }));
         }
 
-        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, cashiResult.expiresAt) + promoText;
+        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, pakasirResult.expiresAt) + promoText;
         
-        // Generate QR Image
+        // Generate QRIS image from QRIS payment string
         let qrBuffer;
         try {
-            const qrData = cashiResult.qrUrl;
-            
-            if (qrData && qrData.startsWith('http')) {
-                qrBuffer = qrData;
-            } else if (qrData && (qrData.startsWith('data:') || qrData.length > 1000)) {
-                const base64Data = qrData.replace(/^data:image\/[a-z]+;base64,/, "");
-                qrBuffer = Buffer.from(base64Data, 'base64');
-            } else {
-                qrBuffer = await QRCode.toBuffer(qrData);
-            }
-        } catch (e) {
-            console.error('QR Gen Error:', e);
-            await bot.sendMessage(chatId, '❌ Gagal membuat gambar QRIS', { parse_mode: 'HTML' });
+            qrBuffer = await QRCode.toBuffer(pakasirResult.paymentNumber, {
+                type: 'png',
+                width: 512,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        } catch (qrError) {
+            console.error('QR Generation Error:', qrError);
+            await bot.sendMessage(chatId, '❌ Gagal generate QRIS\n\nSilakan coba lagi nanti.', { parse_mode: 'HTML' });
             return;
         }
-
-        // Build inline keyboard
+        
+        // Build inline keyboard (tanpa payment link - secret)
         const inlineKeyboard = [];
         
         // Check status button (stores depositId and userId for validation)
@@ -1635,7 +1634,7 @@ Pilih fitur yang ingin digunakan:
             }
         }
 
-        // Send Photo
+        // Send QRIS image with caption
         const sentMsg = await bot.sendPhoto(chatId, qrBuffer, {
             caption: text,
             parse_mode: 'HTML',
@@ -1661,7 +1660,7 @@ Pilih fitur yang ingin digunakan:
                     return;
                 }
 
-                const check = await paymentService.checkPaymentStatus(orderId);
+                const check = await paymentService.checkPaymentStatus(orderId, totalPrice);
                 const currentDep = db.getDeposit(depositId);
 
                 if (currentDep && currentDep.status === 'approved') {

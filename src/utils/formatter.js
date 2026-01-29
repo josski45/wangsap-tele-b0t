@@ -855,9 +855,11 @@ function depositRequestMessage(tokenAmount, totalPrice, depositId, hasPaymentLin
 🪙 Token: <b>${tokenAmount}</b>
 💵 Total: <b>${formatRupiah(totalPrice)}</b>
 
-<b>SCAN QRIS DI BAWAH</b>
+<b>INSTRUKSI PEMBAYARAN</b>
 ${LINE.thin}
-<i>Silakan scan QRIS di bawah ini menggunakan e-wallet atau m-banking apa saja.</i>
+1️⃣ Scan QRIS di atas dengan e-wallet/m-banking
+2️⃣ Bayar tepat <b>${formatRupiah(totalPrice)}</b>
+3️⃣ Tunggu konfirmasi otomatis
 
 ⏰ <i>Expired: <b>${expiredStr}</b></i>
 ❌ <i>Jangan transfer jika expired</i>

@@ -27,9 +27,9 @@ module.exports = {
     nopolApiKey: process.env.NOPOL_API_KEY || '',
     nopolBaseUrl: process.env.NOPOL_BASE_URL || 'https://siakses.my.id/api',
     
-    // Cashi.id Payment Gateway
-    cashiApiKey: process.env.CASHI_API_KEY || '',
-    cashiWebhookSecret: process.env.CASHI_WEBHOOK_SECRET || '',
+    // Pakasir Payment Gateway (QRIS Only)
+    pakasirSlug: process.env.PAKASIR_SLUG || '',
+    pakasirApiKey: process.env.PAKASIR_API_KEY || '',
 
     // Watermark Settings
     watermarkText: process.env.WATERMARK_TEXT || 'CONFIDENTIAL',
