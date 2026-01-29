@@ -1077,6 +1077,108 @@ const ownerCommands = {
         } catch (error) {
             return { success: false, error: error.message };
         }
+    },
+
+    // ═══════════════════════════════════════════
+    // COOLDOWN SETTINGS
+    // ═══════════════════════════════════════════
+
+    /**
+     * Command: /setcd <fitur> <detik>
+     * Set cooldown per fitur
+     */
+    async setcd(bot, msg, args) {
+        const chatId = msg.chat.id;
+        const settings = db.getAllSettings();
+        const cooldowns = settings.cooldowns ? JSON.parse(settings.cooldowns) : {};
+        
+        // Default cooldowns
+        const DEFAULT_COOLDOWNS = {
+            deposit: 30,
+            nik: 5,
+            kk: 5,
+            start: 5,
+            ref: 3,
+            myref: 3,
+            databocor: 5,
+            getcontact: 5,
+            default: 3
+        };
+
+        if (args.length === 0) {
+            // Tampilkan semua cooldown settings
+            let text = `⏱️ <b>COOLDOWN SETTINGS</b>\n\n`;
+            
+            for (const [feature, defaultSec] of Object.entries(DEFAULT_COOLDOWNS)) {
+                if (feature === 'default') continue;
+                const currentSec = cooldowns[feature] || defaultSec;
+                const isCustom = cooldowns[feature] ? '✅' : '⚪';
+                text += `${isCustom} <b>${feature}</b>: ${currentSec} detik\n`;
+            }
+            
+            text += `\n📝 <b>CARA PAKAI:</b>\n`;
+            text += `• <code>/setcd fitur detik</code>\n`;
+            text += `• <code>/setcd reset fitur</code>\n`;
+            text += `• <code>/setcd reset all</code>\n\n`;
+            text += `💡 <b>CONTOH:</b>\n`;
+            text += `<code>/setcd deposit 60</code> → 1 menit\n`;
+            text += `<code>/setcd nik 10</code> → 10 detik\n`;
+            text += `<code>/setcd reset deposit</code> → reset\n\n`;
+            text += `⚪ = default | ✅ = custom`;
+            
+            await bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
+            return;
+        }
+
+        const feature = args[0].toLowerCase();
+        const seconds = parseInt(args[1]);
+
+        // Reset cooldown
+        if (feature === 'reset') {
+            const target = args[1]?.toLowerCase();
+            
+            if (!target) {
+                await bot.sendMessage(chatId, 
+                    `❓ <b>Reset apa?</b>\n\nFormat: <code>/setcd reset fitur</code>\nContoh: <code>/setcd reset deposit</code>\n\nAtau reset semua: <code>/setcd reset all</code>`,
+                    { parse_mode: 'HTML' }
+                );
+                return;
+            }
+
+            if (target === 'all') {
+                db.setSetting('cooldowns', '{}');
+                await bot.sendMessage(chatId, 
+                    `✅ <b>SEMUA COOLDOWN DIRESET</b>\n\nSemua fitur kembali ke nilai default.`,
+                    { parse_mode: 'HTML' }
+                );
+            } else {
+                delete cooldowns[target];
+                db.setSetting('cooldowns', JSON.stringify(cooldowns));
+                await bot.sendMessage(chatId, 
+                    `✅ <b>COOLDOWN DIRESET</b>\n\nFitur <b>${target}</b> kembali ke default: <b>${DEFAULT_COOLDOWNS[target] || 3}</b> detik`,
+                    { parse_mode: 'HTML' }
+                );
+            }
+            return;
+        }
+
+        // Validasi
+        if (isNaN(seconds) || seconds < 0 || seconds > 3600) {
+            await bot.sendMessage(chatId, 
+                `❌ <b>FORMAT SALAH</b>\n\nFormat: <code>/setcd fitur detik</code>\n\n• detik: 0-3600 (max 1 jam)\n\nContoh: <code>/setcd deposit 60</code>`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        // Simpan cooldown baru
+        cooldowns[feature] = seconds;
+        db.setSetting('cooldowns', JSON.stringify(cooldowns));
+
+        await bot.sendMessage(chatId, 
+            `✅ <b>COOLDOWN UPDATED</b>\n\n⏱️ Fitur: <b>${feature}</b>\n⏳ Cooldown: <b>${seconds} detik</b>\n\n<i>User harus tunggu ${seconds} detik sebelum bisa pakai ${feature} lagi</i>`,
+            { parse_mode: 'HTML' }
+        );
     }
 };
 

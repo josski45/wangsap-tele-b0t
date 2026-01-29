@@ -15,12 +15,32 @@ const QRCode = require('qrcode');
 // Cooldown untuk anti-spam
 const commandCooldowns = new Map();
 
-function checkCooldown(userId, command, cooldownMs = 3000) {
+// Default cooldown settings (dalam detik)
+const DEFAULT_COOLDOWNS = {
+    deposit: 30,
+    nik: 5,
+    kk: 5,
+    start: 5,
+    ref: 3,
+    myref: 3,
+    databocor: 5,
+    getcontact: 5,
+    default: 3
+};
+
+function getCooldownSetting(command) {
+    const settings = db.getAllSettings();
+    const savedCooldowns = settings.cooldowns ? JSON.parse(settings.cooldowns) : {};
+    return (savedCooldowns[command] || DEFAULT_COOLDOWNS[command] || DEFAULT_COOLDOWNS.default) * 1000;
+}
+
+function checkCooldown(userId, command, cooldownMs = null) {
     const key = `${userId}:${command}`;
     const now = Date.now();
     const lastTime = commandCooldowns.get(key);
+    const actualCooldown = cooldownMs || getCooldownSetting(command);
     
-    if (lastTime && (now - lastTime) < cooldownMs) {
+    if (lastTime && (now - lastTime) < actualCooldown) {
         return false;
     }
     
@@ -1393,6 +1413,12 @@ Pilih fitur yang ingin digunakan:
         const userId = msg.from.id;
         const firstName = msg.from.first_name || 'User';
         const username = msg.from.username || null;
+        
+        // Check cooldown untuk deposit
+        if (!checkCooldown(userId, 'deposit')) {
+            console.log(`⏳ [COOLDOWN] deposit dari ${userId} - skip`);
+            return;
+        }
         
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
