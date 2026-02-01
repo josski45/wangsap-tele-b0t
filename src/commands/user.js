@@ -2,8 +2,10 @@ const config = require('../config');
 const db = require('../database');
 const apiService = require('../services/api');
 const paymentService = require('../services/payment');
+const satsiberService = require('../services/satsiber');
 const { isValidNIK, isValidKK } = require('../utils/helper');
 const formatter = require('../utils/formatter');
+const { satsiberFotoResultMessage } = require('../utils/formatter');
 const axios = require('axios');
 const https = require('https');
 const QRCode = require('qrcode');
@@ -646,15 +648,24 @@ Pilih fitur yang ingin digunakan:
 
     /**
      * Command: /foto <NIK>
+     * Uses Satsiber API with rate limiting queue (3 req/min)
      */
     async foto(bot, msg, args) {
         const userId = msg.from.id;
         const firstName = msg.from.first_name || 'User';
         const username = msg.from.username || null;
         
+        // Show queue status on help
+        const queueStatus = satsiberService.getQueueStatus();
+        
         if (args.length === 0) {
-            await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\nGunakan: <code>/foto &lt;NIK&gt;</code>\nContoh: <code>/foto 1234567890123456</code>\n\n⚠️ <i>Proses ~30 detik karena callback</i>`,
+            let helpText = `❌ <b>Format Salah</b>\n\nGunakan: <code>/foto &lt;NIK&gt;</code>\nContoh: <code>/foto 1234567890123456</code>`;
+            
+            if (queueStatus.queueLength > 0) {
+                helpText += `\n\n📊 <b>Status Antrian:</b>\n🔄 Antrian: ${queueStatus.queueLength} request\n⏱️ Estimasi: ~${Math.ceil(queueStatus.estimatedWaitTime / 1000)}s`;
+            }
+            
+            await bot.sendMessage(msg.chat.id, helpText,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -691,38 +702,42 @@ Pilih fitur yang ingin digunakan:
             return;
         }
 
-        const requestId = db.createApiRequest(userId, 'foto', nik, 'starkiller', fotoCost);
+        const requestId = db.createApiRequest(userId, 'foto', nik, 'satsiber', fotoCost);
 
-        const processingMsg = await bot.sendMessage(msg.chat.id,
-            `⏳ <b>Sedang Proses...</b>\n\n📷 Mencari NIK + Foto: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n<i>⚠️ Proses ini membutuhkan ~30 detik</i>`,
-            { parse_mode: 'HTML' }
-        );
+        // Initial processing message with queue info
+        const currentQueueStatus = satsiberService.getQueueStatus();
+        let initialMsg = `⏳ <b>Sedang Proses...</b>\n\n📷 Mencari NIK + Foto: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>`;
+        
+        if (currentQueueStatus.queueLength > 0) {
+            initialMsg += `\n\n📊 <b>Antrian:</b> ${currentQueueStatus.queueLength} request\n⏱️ <b>Estimasi:</b> ~${Math.ceil(currentQueueStatus.estimatedWaitTime / 1000)}s`;
+        }
+
+        const processingMsg = await bot.sendMessage(msg.chat.id, initialMsg, { parse_mode: 'HTML' });
 
         db.deductTokens(userId, fotoCost);
 
-        // Step 1: Request ke Starkiller
-        const initResult = await apiService.checkNIKFoto(nik);
-
-        if (!initResult.success) {
-            if (initResult.refund) {
-                db.refundTokens(userId, fotoCost);
+        // Queue update callback
+        const onQueueUpdate = async (status) => {
+            try {
+                if (status.position > 0) {
+                    await bot.editMessageText(
+                        `⏳ <b>Dalam Antrian...</b>\n\n📷 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n📊 <b>Posisi:</b> ${status.position} dari ${status.total}\n⏱️ <b>Estimasi:</b> ~${Math.ceil(status.estimatedWait / 1000)}s\n\n<i>🔄 Rate limit: 3 req/menit</i>`,
+                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                    );
+                } else {
+                    await bot.editMessageText(
+                        `⏳ <b>Memproses...</b>\n\n📷 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n<i>🔄 Menghubungi server Satsiber...</i>`,
+                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+                    );
+                }
+            } catch (e) {
+                // Ignore edit errors (e.g., message deleted)
             }
-            db.updateApiRequest(requestId, 'failed', null, null, initResult.error);
-            
-            await bot.editMessageText(
-                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(initResult.error)}\n\n${initResult.refund ? `🪙 Token dikembalikan: <b>${fotoCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
-                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-            );
-            return;
-        }
+        };
 
-        // Step 2: Poll callback
-        await bot.editMessageText(
-            `⏳ <b>Menunggu Data...</b>\n\n📷 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n<i>🔄 Sedang dalam antrian server...</i>`,
-            { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-        );
-
-        const result = await apiService.pollStarkillerCallback(initResult.callbackUrl, 20, 5000);
+        // Request to Satsiber API with queue
+        const result = await satsiberService.requestNikToPhoto(nik, onQueueUpdate);
+        
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
 
@@ -740,22 +755,21 @@ Pilih fitur yang ingin digunakan:
             return;
         }
 
-        db.updateApiRequest(requestId, 'success', 'Data + Foto ditemukan', null, null, result.data);
-        db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil`, nik, 'success');
+        db.updateApiRequest(requestId, 'success', 'Data + Foto ditemukan (Satsiber)', null, null, result.data);
+        db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil (Satsiber)`, nik, 'success');
 
-        const fotoData = result.data[0]?.data?.[0] || {};
-        const captionText = formatter.fotoResultMessage(result.data, fotoCost, requestId, remainingToken);
+        const captionText = satsiberFotoResultMessage(result.data, fotoCost, requestId, remainingToken);
 
         // Delete processing message
         await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
 
         // Send photo if available
-        if (fotoData.foto && fotoData.foto.startsWith('data:image')) {
+        if (result.photoBuffer) {
             try {
-                const base64Data = fotoData.foto.split(',')[1];
-                const imgBuffer = Buffer.from(base64Data, 'base64');
+                // Apply watermark if enabled (optional - telegram bot name watermark)
+                let photoBuffer = result.photoBuffer;
                 
-                await bot.sendPhoto(msg.chat.id, imgBuffer, {
+                await bot.sendPhoto(msg.chat.id, photoBuffer, {
                     caption: captionText,
                     parse_mode: 'HTML',
                     reply_to_message_id: msg.message_id
@@ -767,29 +781,8 @@ Pilih fitur yang ingin digunakan:
                     reply_to_message_id: msg.message_id 
                 });
             }
-        } else if (fotoData.srcmedia) {
-            try {
-                const imgResponse = await axios.get(fotoData.srcmedia, {
-                    responseType: 'arraybuffer',
-                    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-                    timeout: 60000
-                });
-
-                await bot.sendPhoto(msg.chat.id, Buffer.from(imgResponse.data), {
-                    caption: captionText,
-                    parse_mode: 'HTML',
-                    reply_to_message_id: msg.message_id
-                });
-            } catch (err) {
-                console.error('Failed to download photo:', err);
-                await bot.sendPhoto(msg.chat.id, fotoData.srcmedia, {
-                    caption: captionText,
-                    parse_mode: 'HTML',
-                    reply_to_message_id: msg.message_id
-                });
-            }
         } else {
-            await bot.sendMessage(msg.chat.id, captionText, { 
+            await bot.sendMessage(msg.chat.id, captionText + '\n\n<i>📷 Foto tidak tersedia</i>', { 
                 parse_mode: 'HTML',
                 reply_to_message_id: msg.message_id 
             });

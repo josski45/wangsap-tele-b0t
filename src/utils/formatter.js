@@ -426,6 +426,60 @@ ${LINE.thin}
 }
 
 // ═══════════════════════════════════════════
+// SATSIBER FOTO RESULT MESSAGE
+// ═══════════════════════════════════════════
+function satsiberFotoResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+    const result = data || {};
+    
+    // Build TTL string
+    const ttl = result.tempat_lahir && result.tanggal_lahir 
+        ? `${result.tempat_lahir}, ${result.tanggal_lahir}` 
+        : (result.tempat_lahir || result.tanggal_lahir || '-');
+    
+    // Build full address
+    const alamatParts = [
+        result.alamat,
+        result.kelurahan ? `Kel. ${result.kelurahan}` : null,
+        result.kecamatan ? `Kec. ${result.kecamatan}` : null,
+        result.kabupaten,
+        result.provinsi
+    ].filter(Boolean);
+    const fullAlamat = alamatParts.length > 0 ? alamatParts.join(', ') : '-';
+    
+    return `
+${EMOJI.camera} <b>CEK NIK + FOTO (SATSIBER)</b>
+${LINE.double}
+
+<b>📋 IDENTITAS</b>
+🆔 NIK: <code>${result.nik || '-'}</code>
+👤 Nama: <b>${escapeHtml(result.nama || '-')}</b>
+📅 TTL: ${escapeHtml(ttl)}
+🕌 Agama: ${escapeHtml(result.agama || '-')}
+💍 Status: ${escapeHtml(result.status_kawin || '-')}
+
+<b>👨‍👩‍👧‍👦 KELUARGA</b>
+📋 No. KK: <code>${result.no_kk || '-'}</code>
+👨 Ayah: ${escapeHtml(result.nama_ayah || '-')}
+👩 Ibu: ${escapeHtml(result.nama_ibu || '-')}
+
+<b>🏠 ALAMAT LENGKAP</b>
+${escapeHtml(fullAlamat)}
+
+<b>📚 PENDIDIKAN & PEKERJAAN</b>
+🎓 Pendidikan: ${escapeHtml(result.pendidikan || '-')}
+💼 Pekerjaan: ${escapeHtml(result.pekerjaan || '-')}
+
+<b>📷 FOTO</b>
+${result.photo_path ? '✅ Foto tersedia' : '❌ Foto tidak tersedia'}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+<i>🔗 Source: Satsiber API</i>
+`;
+}
+
+// ═══════════════════════════════════════════
 // EDABU RESULT MESSAGE
 // ═══════════════════════════════════════════
 // ═══════════════════════════════════════════
@@ -1202,6 +1256,7 @@ module.exports = {
     namaResultMessage,
     kkResultMessage,
     fotoResultMessage,
+    satsiberFotoResultMessage,
     edabuResultMessage,
     bpjstkResultMessage,
     nopolResultMessage,
