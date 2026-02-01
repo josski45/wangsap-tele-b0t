@@ -195,6 +195,13 @@ async function searchNikInternal(nik) {
         });
         
         console.log(`[SATSIBER_API] [${requestId}] Response status: ${response.status}`);
+        console.log(`[SATSIBER_API] [${requestId}] Response data:`, JSON.stringify(response.data).substring(0, 500));
+        
+        // Log photo-related fields specifically
+        if (response.data?.message) {
+            const msg = response.data.message;
+            console.log(`[SATSIBER_API] [${requestId}] Photo fields - image_desc: ${msg.image_desc}, photo_path: ${msg.photo_path ? 'EXISTS' : 'EMPTY'}`);
+        }
         
         return response.data;
     } catch (error) {
@@ -282,8 +289,10 @@ async function requestNikToPhoto(nik, onQueueUpdate = null) {
         };
     }
     
-    // Check if photo is available
-    if (result.image_desc !== 'found' || !result.photo_path) {
+    // Check if photo is available (just check photo_path exists)
+    const hasPhoto = !!(result.photo_path && result.photo_path.trim());
+    
+    if (!hasPhoto) {
         return {
             status: 'no_photo',
             message: 'Data ditemukan tapi foto tidak tersedia',

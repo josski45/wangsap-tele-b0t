@@ -9,6 +9,22 @@ const { satsiberFotoResultMessage } = require('../utils/formatter');
 const axios = require('axios');
 const https = require('https');
 const QRCode = require('qrcode');
+const { Jimp, loadFont } = require('jimp');
+const { SANS_16_WHITE, SANS_32_WHITE } = require('jimp/fonts');
+
+// Helper functions for Jimp text measurement
+function measureText(font, text) {
+    let width = 0;
+    for (const char of text) {
+        const charData = font.chars[char];
+        if (charData) width += charData.xadvance || charData.width || 8;
+    }
+    return width;
+}
+
+function measureTextHeight(font, text) {
+    return font.common?.lineHeight || 32;
+}
 
 /**
  * User Commands untuk Telegram Bot
@@ -741,33 +757,76 @@ Pilih fitur yang ingin digunakan:
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
 
-        if (!result.success) {
+        // Handle error/not_found status
+        if (result.status === 'error' || result.status === 'not_found') {
             if (result.refund) {
                 db.refundTokens(userId, fotoCost);
             }
-            db.updateApiRequest(requestId, 'failed', null, null, result.error);
+            db.updateApiRequest(requestId, 'failed', null, null, result.message);
             db.createTransaction(userId, 'check', fotoCost, `Cek foto gagal`, nik, 'failed');
             
             await bot.editMessageText(
-                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${fotoCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.message || 'Terjadi kesalahan')}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${fotoCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
                 { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
             );
             return;
         }
 
-        db.updateApiRequest(requestId, 'success', 'Data + Foto ditemukan (Satsiber)', null, null, result.data);
-        db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil (Satsiber)`, nik, 'success');
+        db.updateApiRequest(requestId, 'success', result.status === 'success' ? 'Data + Foto ditemukan' : 'Data ditemukan', null, null, result.data);
+        db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil`, nik, 'success');
 
-        const captionText = satsiberFotoResultMessage(result.data, fotoCost, requestId, remainingToken);
+        // Pass hasPhoto flag to formatter
+        const hasPhoto = !!(result.data && result.data.photoBuffer);
+        const captionText = satsiberFotoResultMessage(result.data, fotoCost, requestId, remainingToken, hasPhoto);
 
         // Delete processing message
         await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
 
-        // Send photo if available
-        if (result.photoBuffer) {
+        // Send photo if available (photoBuffer is inside result.data)
+        if (result.data && result.data.photoBuffer) {
             try {
-                // Apply watermark if enabled (optional - telegram bot name watermark)
-                let photoBuffer = result.photoBuffer;
+                // Apply watermark with Telegram User ID
+                let photoBuffer = result.data.photoBuffer;
+                
+                try {
+                    const image = await Jimp.read(photoBuffer);
+                    const w = image.bitmap.width;
+                    const h = image.bitmap.height;
+                    
+                    const scale = Math.min(w, h);
+                    const useBig = scale >= 800;
+                    const fontBrand = await loadFont(useBig ? SANS_32_WHITE : SANS_16_WHITE);
+                    const fontSmall = await loadFont(SANS_16_WHITE);
+                    
+                    const timestamp = new Date().toLocaleString('id-ID', { 
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
+                        timeZone: 'Asia/Jakarta'
+                    }).replace(/\//g, '-');
+                    
+                    const pad = Math.round(Math.max(14, Math.min(42, scale * 0.02)));
+                    const stroke = Math.round(Math.max(2, Math.min(6, scale * 0.005)));
+                    
+                    // Watermark text with Telegram User ID
+                    const watermarkText = `@${userId}`;
+                    const timeText = timestamp;
+                    
+                    // Simple text rendering
+                    const textW1 = measureText(fontBrand, watermarkText);
+                    const textW2 = measureText(fontSmall, timeText);
+                    
+                    // Draw watermark at bottom right
+                    image.print({ font: fontBrand, x: w - textW1 - pad, y: h - 60 - pad, text: watermarkText });
+                    image.print({ font: fontSmall, x: w - textW2 - pad, y: h - 30 - pad, text: timeText });
+                    
+                    // Also draw at top left for visibility
+                    image.print({ font: fontBrand, x: pad, y: pad, text: watermarkText });
+                    
+                    photoBuffer = await image.getBuffer('image/jpeg');
+                } catch (wmError) {
+                    console.error('Watermark error:', wmError.message);
+                    // Continue without watermark
+                }
                 
                 await bot.sendPhoto(msg.chat.id, photoBuffer, {
                     caption: captionText,

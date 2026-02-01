@@ -428,7 +428,7 @@ ${LINE.thin}
 // ═══════════════════════════════════════════
 // SATSIBER FOTO RESULT MESSAGE
 // ═══════════════════════════════════════════
-function satsiberFotoResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+function satsiberFotoResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, hasPhoto = false) {
     const result = data || {};
     
     // Build TTL string
@@ -447,7 +447,7 @@ function satsiberFotoResultMessage(data, tokenUsed, requestId = '', remainingTok
     const fullAlamat = alamatParts.length > 0 ? alamatParts.join(', ') : '-';
     
     return `
-${EMOJI.camera} <b>CEK NIK + FOTO (SATSIBER)</b>
+${EMOJI.camera} <b>CEK NIK + FOTO</b>
 ${LINE.double}
 
 <b>📋 IDENTITAS</b>
@@ -469,13 +469,9 @@ ${escapeHtml(fullAlamat)}
 🎓 Pendidikan: ${escapeHtml(result.pendidikan || '-')}
 💼 Pekerjaan: ${escapeHtml(result.pekerjaan || '-')}
 
-<b>📷 FOTO</b>
-${result.photo_path ? '✅ Foto tersedia' : '❌ Foto tidak tersedia'}
-
 ${LINE.thin}
 🆔 ID: <code>${requestId}</code>
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
-<i>🔗 Source: Satsiber API</i>
 `;
 }
 
