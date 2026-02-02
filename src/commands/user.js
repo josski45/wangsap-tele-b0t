@@ -772,6 +772,26 @@ Pilih fitur yang ingin digunakan:
             return;
         }
 
+        // Handle no_photo status - refund half tokens
+        if (result.status === 'no_photo') {
+            const halfCost = Math.floor(fotoCost / 2);
+            db.refundTokens(userId, halfCost);
+            
+            const finalUser = db.getUser(userId);
+            const finalBalance = finalUser?.token_balance || 0;
+            
+            db.updateApiRequest(requestId, 'partial', 'Data ditemukan, foto tidak tersedia', null, null, result.data);
+            db.createTransaction(userId, 'check', halfCost, `Cek foto (tanpa gambar)`, nik, 'success');
+            
+            const captionText = satsiberFotoResultMessage(result.data, halfCost, requestId, finalBalance, false);
+            
+            await bot.editMessageText(
+                `${captionText}\n\n<b>📷 FOTO TIDAK DITEMUKAN</b>\n🪙 Token dikembalikan: <b>${halfCost} token</b> (setengah harga)`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
         db.updateApiRequest(requestId, 'success', result.status === 'success' ? 'Data + Foto ditemukan' : 'Data ditemukan', null, null, result.data);
         db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil`, nik, 'success');
 

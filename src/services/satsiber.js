@@ -289,13 +289,13 @@ async function requestNikToPhoto(nik, onQueueUpdate = null) {
         };
     }
     
-    // Check if photo is available (just check photo_path exists)
-    const hasPhoto = !!(result.photo_path && result.photo_path.trim());
+    // Check if photo is available (check image_desc and photo_path)
+    const hasPhoto = result.image_desc === 'found' && result.photo_path && result.photo_path.trim() && !result.photo_path.includes('empty.png');
     
     if (!hasPhoto) {
         return {
             status: 'no_photo',
-            message: 'Data ditemukan tapi foto tidak tersedia',
+            message: '📷 FOTO TIDAK DITEMUKAN\n\nData berhasil ditemukan, namun foto KTP tidak tersedia.\n\n🪙 Token dipotong setengah harga.',
             data: {
                 nama: result.nama,
                 nik: result.nik,
@@ -315,7 +315,8 @@ async function requestNikToPhoto(nik, onQueueUpdate = null) {
                 nama_ayah: result.nama_ayah
             },
             remaining: data.remaining,
-            refund: false
+            refund: false,
+            refundHalf: true
         };
     }
     
