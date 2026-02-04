@@ -100,6 +100,77 @@ function escapeHtml(text) {
 }
 
 /**
+ * Sanitize error message to prevent exposing server/API details
+ * @param {string|Error} error - Error message or Error object
+ * @returns {string} - Sanitized error message safe for users
+ */
+function sanitizeErrorMessage(error) {
+    const errorStr = typeof error === 'string' ? error : (error?.message || 'Unknown error');
+    
+    // Patterns that expose sensitive info
+    const sensitivePatterns = [
+        /https?:\/\/[^\s]+/gi,                    // URLs
+        /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, // IP addresses
+        /api[_-]?key[=:]?\s*[\w-]+/gi,            // API keys
+        /token[=:]?\s*[\w-]+/gi,                   // Tokens
+        /password[=:]?\s*[\w-]+/gi,               // Passwords
+        /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNABORTED|ECONNRESET/gi, // Node errors
+        /Error:\s*connect\s+/gi,                  // Connection errors
+        /at\s+[\w\.]+\s*\([^)]+\)/g,              // Stack traces
+        /\/[\w\/\.]+\.js:\d+:\d+/g,               // File paths with line numbers
+        /localhost|127\.0\.0\.1/gi,               // Localhost references
+        /port\s*\d+/gi,                           // Port numbers
+        /apikey=[\w-]+/gi,                        // API key params
+        /Authorization:\s*[^\s]+/gi,             // Auth headers
+    ];
+    
+    let sanitized = errorStr;
+    
+    // Replace sensitive patterns
+    for (const pattern of sensitivePatterns) {
+        sanitized = sanitized.replace(pattern, '[HIDDEN]');
+    }
+    
+    // Map common technical errors to user-friendly messages
+    const errorMappings = {
+        '[HIDDEN]': 'Terjadi kesalahan koneksi',
+        'ECONNREFUSED': 'Server sedang tidak dapat dijangkau',
+        'ENOTFOUND': 'Server tidak ditemukan',
+        'ETIMEDOUT': 'Request timeout, silakan coba lagi',
+        'ECONNABORTED': 'Koneksi terputus, silakan coba lagi',
+        'ECONNRESET': 'Koneksi direset, silakan coba lagi',
+        'socket hang up': 'Koneksi terputus',
+        'network error': 'Gangguan jaringan',
+        'request failed': 'Permintaan gagal',
+        '500': 'Server sedang mengalami masalah',
+        '502': 'Server sedang tidak tersedia',
+        '503': 'Layanan sedang tidak tersedia',
+        '504': 'Server timeout',
+        '401': 'Autentikasi gagal',
+        '403': 'Akses ditolak',
+        '404': 'Data tidak ditemukan',
+        '429': 'Terlalu banyak permintaan, coba lagi nanti',
+    };
+    
+    // Check if entire message is just [HIDDEN]
+    if (sanitized.trim() === '[HIDDEN]' || sanitized.includes('[HIDDEN]')) {
+        for (const [key, value] of Object.entries(errorMappings)) {
+            if (errorStr.toLowerCase().includes(key.toLowerCase())) {
+                return value;
+            }
+        }
+        return 'Terjadi kesalahan sistem, silakan coba lagi';
+    }
+    
+    // If message is too technical, replace entirely
+    if (sanitized.length > 100 || /[{}<>\[\]]/g.test(sanitized)) {
+        return 'Terjadi kesalahan sistem, silakan coba lagi';
+    }
+    
+    return sanitized;
+}
+
+/**
  * Censor NIK (tampilkan sebagian)
  */
 function censorNIK(nik) {
@@ -158,6 +229,7 @@ module.exports = {
     rateLimiter,
     delay,
     escapeHtml,
+    sanitizeErrorMessage,
     censorNIK,
     censorName,
     generateRandomString,

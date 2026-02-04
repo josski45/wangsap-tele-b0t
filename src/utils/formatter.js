@@ -107,9 +107,9 @@ ${LINE.sep}
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
 👷 /bpjstk • <code>${bpjstkCost} token</code>
-🚗 /nopol • <code>${nopolCost} token</code>
-📱 /regnik • <code>${regnikCost} token</code>
-📱 /regsim • <code>${regsimCost} token</code>
+🚗 /nopol [PLAT/NIK/NOKA/NOSIN] • <code>${nopolCost} token</code>
+📱 /regnik • <code>${regnikCost} token</code> <i>NIK→HP</i>
+📱 /regsim • <code>${regsimCost} token</code> <i>HP→NIK</i>
 🔓 /databocor • <code>${databocorCost} token</code>
 📱 /getcontact • <code>${getcontactCost} token</code>
 
@@ -182,9 +182,10 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${bpjstkCost} token</code>
    Data: BPJS Ketenagakerjaan
 
- 🚗 <b>/nopol</b> &lt;PLAT&gt;
+ 🚗 <b>/nopol</b> &lt;PLAT/NIK/NOKA/NOSIN&gt;
    Biaya: <code>${nopolCost} token</code>
    Data: Info Kendaraan
+   <i>Support: Plat Nomor / NIK / No. Rangka / No. Mesin</i>
 
 📱 <b>/regnik</b> &lt;NIK&gt;
    Biaya: <code>${regnikCost} token</code>

@@ -2,6 +2,7 @@ const axios = require('axios');
 const https = require('https');
 const config = require('../config');
 const db = require('../database');
+const { sanitizeErrorMessage } = require('../utils/helper');
 
 /**
  * API Service untuk semua API calls
@@ -459,16 +460,29 @@ class APIService {
         }
 
         if (error.response) {
+            const status = error.response.status;
+            let errorMsg = 'Gagal memproses permintaan';
+            
+            if (status === 429) {
+                errorMsg = 'Terlalu banyak permintaan, coba lagi nanti';
+            } else if (status === 401 || status === 403) {
+                errorMsg = 'Akses ke layanan ditolak';
+            } else if (status >= 500) {
+                errorMsg = 'Server sedang mengalami masalah';
+            } else if (status === 404) {
+                errorMsg = 'Data tidak ditemukan';
+            }
+            
             return {
                 success: false,
-                error: `API Error: ${error.response.status}`,
+                error: errorMsg,
                 refund: true
             };
         }
 
         return {
             success: false,
-            error: 'Gagal menghubungi server, silakan coba lagi',
+            error: sanitizeErrorMessage(error),
             refund: true
         };
     }
