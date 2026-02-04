@@ -15,7 +15,7 @@ module.exports = {
     eyexApiKey: process.env.EYEX_API_KEY || 'nOwjxZrYAK2P',
     eyexBaseUrl: process.env.EYEX_BASE_URL || 'https://api.eyex.dev',
     
-    // STARKILLER API (untuk /foto)
+    // STARKILLER API (untuk /foto, /regnik, /regsim)
     starkillerApiKey: process.env.STARKILLER_API_KEY || '',
     starkillerBaseUrl: process.env.STARKILLER_BASE_URL || 'https://starkiller.space/api/v1',
     
@@ -23,9 +23,12 @@ module.exports = {
     edabuApiKey: process.env.EDABU_API_KEY || '',
     edabuBaseUrl: process.env.EDABU_BASE_URL || 'http://164.92.180.153:2006/api',
 
-    // NOPOL API (untuk /nopol - Cek Plat Nomor)
+    // NOPOL API (untuk /nopol - Cek Plat Nomor - Legacy)
     nopolApiKey: process.env.NOPOL_API_KEY || '',
     nopolBaseUrl: process.env.NOPOL_BASE_URL || 'https://siakses.my.id/api',
+    
+    // TerbangBebas API (untuk /nopol, /noka, /nosin, /nikvehicle)
+    terbangbebasApiKey: process.env.TERBANGBEBAS_API_KEY || 'bb1939cc65b3f5dc732c8f94ce14bc92',
     
     // Pakasir Payment Gateway (QRIS Only)
     pakasirSlug: process.env.PAKASIR_SLUG || '',
@@ -47,6 +50,9 @@ module.exports = {
     edabuCost: parseInt(process.env.EDABU_COST) || 3,
     bpjstkCost: parseInt(process.env.BPJSTK_COST) || 3,
     nopolCost: parseInt(process.env.NOPOL_COST) || 3,
+    nokaCost: parseInt(process.env.NOKA_COST) || 3,
+    nosinCost: parseInt(process.env.NOSIN_COST) || 3,
+    nikvehicleCost: parseInt(process.env.NIKVEHICLE_COST) || 3,
     regnikCost: parseInt(process.env.REGNIK_COST) || 3,
     regsimCost: parseInt(process.env.REGSIM_COST) || 3,
     databocorCost: parseInt(process.env.DATABOCOR_COST) || 3,

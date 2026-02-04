@@ -780,13 +780,143 @@ ${LINE.double}
 }
 
 // ═══════════════════════════════════════════
-// NOPOL RESULT MESSAGE
+// NOPOL RESULT MESSAGE (Legacy - kept for backwards compatibility)
 // ═══════════════════════════════════════════
 function nopolResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
     const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
     
     return `
 🚗 <b>HASIL CEK NOPOL</b>
+${LINE.double}
+
+🔖 <b>INFO KENDARAAN</b>
+Plat: <b>${escapeHtml(platNomor)}</b>
+Merk: ${escapeHtml(data.Merk || '-')}
+Type: ${escapeHtml(data.Type || '-')}
+Tahun: ${escapeHtml(data.TahunPembuatan || '-')}
+Warna: ${escapeHtml(data.Warna || '-')}
+CC: ${escapeHtml(data.IsiCylinder || '-')}
+Roda: ${data.JumlahRoda || '-'}
+
+📋 <b>DOKUMEN</b>
+No. Rangka: <code>${data.NoRangka || '-'}</code>
+No. Mesin: <code>${data.NoMesin || '-'}</code>
+No. BPKB: <code>${data.NoBPKB || '-'}</code>
+No. STNK: <code>${data.NoSTNK || '-'}</code>
+APM: ${escapeHtml(data.APM || '-')}
+
+👤 <b>PEMILIK</b>
+Nama: <b>${escapeHtml(data.NamaPemilik || '-')}</b>
+NIK: <code>${data.NoKTP || '-'}</code>
+No. KK: <code>${data.NoKK || '-'}</code>
+HP: ${escapeHtml(data.NoHP || '-')}
+Pekerjaan: ${escapeHtml(data.Pekerjaan || '-')}
+
+🏠 <b>ALAMAT</b>
+${escapeHtml(data.alamat || '-')}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+}
+
+// ═══════════════════════════════════════════
+// VEHICLE RESULT MESSAGE (TerbangBebas API - for multiple vehicles)
+// ═══════════════════════════════════════════
+function vehicleResultMessage(data, index = 1, total = 1, query = '', tokenUsed = 0, requestId = '', remainingToken = 0) {
+    const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
+    
+    const header = total > 1 
+        ? `🚗 <b>HASIL CEK NOPOL (${index}/${total})</b>`
+        : `🚗 <b>HASIL CEK NOPOL</b>`;
+    
+    return `
+${header}
+${LINE.double}
+${total > 1 ? `🔍 Query: <b>${escapeHtml(query)}</b>\n` : ''}
+🔖 <b>INFO KENDARAAN</b>
+Plat: <b>${escapeHtml(platNomor)}</b>
+Merk: ${escapeHtml(data.Merk || '-')}
+Type: ${escapeHtml(data.Type || '-')}
+Tahun: ${escapeHtml(data.TahunPembuatan || '-')}
+Warna: ${escapeHtml(data.Warna || '-')}
+CC: ${escapeHtml(data.IsiCylinder || '-')}
+Roda: ${data.JumlahRoda || '-'}
+
+📋 <b>DOKUMEN</b>
+No. Rangka: <code>${data.NoRangka || '-'}</code>
+No. Mesin: <code>${data.NoMesin || '-'}</code>
+No. BPKB: <code>${data.NoBPKB || '-'}</code>
+No. STNK: <code>${data.NoSTNK || '-'}</code>
+APM: ${escapeHtml(data.APM || '-')}
+
+👤 <b>PEMILIK</b>
+Nama: <b>${escapeHtml(data.NamaPemilik || '-')}</b>
+NIK: <code>${data.NoKTP || '-'}</code>
+No. KK: <code>${data.NoKK || '-'}</code>
+HP: ${escapeHtml(data.NoHP || '-')}
+Pekerjaan: ${escapeHtml(data.Pekerjaan || '-')}
+
+🏠 <b>ALAMAT</b>
+${escapeHtml(data.alamat || '-')}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+}
+
+// ═══════════════════════════════════════════
+// NOKA RESULT MESSAGE (Nomor Rangka)
+// ═══════════════════════════════════════════
+function nokaResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+    const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
+    
+    return `
+🔧 <b>HASIL CEK NO RANGKA</b>
+${LINE.double}
+
+🔖 <b>INFO KENDARAAN</b>
+Plat: <b>${escapeHtml(platNomor)}</b>
+Merk: ${escapeHtml(data.Merk || '-')}
+Type: ${escapeHtml(data.Type || '-')}
+Tahun: ${escapeHtml(data.TahunPembuatan || '-')}
+Warna: ${escapeHtml(data.Warna || '-')}
+CC: ${escapeHtml(data.IsiCylinder || '-')}
+Roda: ${data.JumlahRoda || '-'}
+
+📋 <b>DOKUMEN</b>
+No. Rangka: <code>${data.NoRangka || '-'}</code>
+No. Mesin: <code>${data.NoMesin || '-'}</code>
+No. BPKB: <code>${data.NoBPKB || '-'}</code>
+No. STNK: <code>${data.NoSTNK || '-'}</code>
+APM: ${escapeHtml(data.APM || '-')}
+
+👤 <b>PEMILIK</b>
+Nama: <b>${escapeHtml(data.NamaPemilik || '-')}</b>
+NIK: <code>${data.NoKTP || '-'}</code>
+No. KK: <code>${data.NoKK || '-'}</code>
+HP: ${escapeHtml(data.NoHP || '-')}
+Pekerjaan: ${escapeHtml(data.Pekerjaan || '-')}
+
+🏠 <b>ALAMAT</b>
+${escapeHtml(data.alamat || '-')}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
+`;
+}
+
+// ═══════════════════════════════════════════
+// NOSIN RESULT MESSAGE (Nomor Mesin)
+// ═══════════════════════════════════════════
+function nosinResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+    const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
+    
+    return `
+⚙️ <b>HASIL CEK NO MESIN</b>
 ${LINE.double}
 
 🔖 <b>INFO KENDARAAN</b>
@@ -1256,6 +1386,9 @@ module.exports = {
     edabuResultMessage,
     bpjstkResultMessage,
     nopolResultMessage,
+    vehicleResultMessage,
+    nokaResultMessage,
+    nosinResultMessage,
     regnikResultMessage,
     regsimResultMessage,
     depositRequestMessage,
