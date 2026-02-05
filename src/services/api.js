@@ -538,7 +538,18 @@ class APIService {
                 };
             }
 
-            const result = data.result[0];
+            // Filter null values - API returns [null, {...data}]
+            const validResults = data.result.filter(item => item !== null && typeof item === 'object');
+            
+            if (validResults.length === 0) {
+                return {
+                    success: false,
+                    error: 'Data tidak ditemukan',
+                    refund: true
+                };
+            }
+
+            const result = validResults[0];
             return {
                 success: true,
                 data: result,

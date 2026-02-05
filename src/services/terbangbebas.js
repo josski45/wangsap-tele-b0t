@@ -106,8 +106,19 @@ class TerbangBebasService {
                 };
             }
 
+            // Filter null values - API returns [null, {...data}]
+            const vehicles = data.result.filter(item => item !== null && typeof item === 'object');
+            
+            if (vehicles.length === 0) {
+                return {
+                    success: false,
+                    error: 'Data tidak ditemukan',
+                    refund: true,
+                    vehicles: []
+                };
+            }
+
             // Success - return all vehicles
-            const vehicles = data.result;
             console.log(`✅ [TerbangBebas] Found ${vehicles.length} vehicle(s) for: ${query}`);
 
             return {
