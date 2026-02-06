@@ -68,6 +68,10 @@ module.exports = {
     getcontactApiUrl: process.env.GETCONTACT_API_URL || 'https://data-publik.com/api/getcontact/multisource',
     getcontactKey: process.env.GETCONTACT_KEY || 'VOXGVUP',
     getcontactCost: parseInt(process.env.GETCONTACT_COST) || 3,
+    bugwaCost: parseInt(process.env.BUGWA_COST) || 3,
+    
+    // BugWA API
+    bugwaBaseUrl: process.env.BUGWA_BASE_URL || 'http://159.223.64.52:5004',
     
     // Bot settings
     botName: process.env.BOT_NAME || 'NIK Validator Bot',

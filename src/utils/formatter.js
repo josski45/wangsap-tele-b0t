@@ -94,6 +94,7 @@ function menuMessage() {
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
+    const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
 
     return `
 ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
@@ -112,6 +113,7 @@ ${LINE.sep}
 📱 /regsim • <code>${regsimCost} token</code> <i>HP→NIK</i>
 🔓 /databocor • <code>${databocorCost} token</code>
 📱 /getcontact • <code>${getcontactCost} token</code>
+💥 /bugwa • <code>${bugwaCost} token</code>
 
 ${EMOJI.user} <b>MENU USER</b>
 ${LINE.sep}
@@ -144,6 +146,7 @@ function helpMessage() {
     const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
+    const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
     const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
     const riwayatDays = parseInt(settings.riwayat_days) || config.riwayatDays;
     const minTopup = parseInt(settings.min_topup) || config.minTopupToken;
@@ -203,6 +206,11 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${getcontactCost} token</code>
    Data: Multi-source caller ID lookup
 
+💥 <b>/bugwa</b> &lt;target&gt; &lt;mode&gt;
+   Biaya: <code>${bugwaCost} token</code>
+   Mode: <code>crashinvis</code> | <code>invisdelay</code>
+   Sub: <code>/bugwa stop</code> | <code>/bugwa status</code>
+
 �📋 <b>/riwayat</b>
    Biaya: <code>GRATIS</code>
    Data: ${riwayatDays} hari terakhir
@@ -247,6 +255,7 @@ ${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
 📱 /regsim - Nomor HP ke NIK
 🔓 /databocor - Leak OSINT
 📱 /getcontact - Caller ID Lookup
+💥 /bugwa - WA Crash Sender
 
 <i>Ketik /menu untuk info lengkap</i>
 `;
