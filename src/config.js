@@ -72,6 +72,8 @@ module.exports = {
     
     // BugWA API
     bugwaBaseUrl: process.env.BUGWA_BASE_URL || 'http://159.223.64.52:5004',
+    bugwaSessionUser: process.env.BUGWA_SESSION_USER || '',
+    bugwaSessionId: process.env.BUGWA_SESSION_ID || '',
     
     // Bot settings
     botName: process.env.BOT_NAME || 'NIK Validator Bot',

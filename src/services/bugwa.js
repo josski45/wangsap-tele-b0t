@@ -1,4 +1,5 @@
 const axios = require('axios');
+const config = require('../config');
 const { sanitizeErrorMessage } = require('../utils/helper');
 
 /**
@@ -7,7 +8,9 @@ const { sanitizeErrorMessage } = require('../utils/helper');
  */
 class BugWAService {
     constructor() {
-        this.baseUrl = 'http://159.223.64.52:5004';
+        this.baseUrl = config.bugwaBaseUrl;
+        this.sessionUser = config.bugwaSessionUser;
+        this.sessionId = config.bugwaSessionId;
         this.defaultTimeout = 30000;
         
         // Track active attacks per user (telegramUserId -> Set of attack keys)
@@ -25,6 +28,14 @@ class BugWAService {
      */
     getValidModes() {
         return this.validModes;
+    }
+
+    /**
+     * Get cookie string
+     */
+    getCookie() {
+        if (!this.sessionUser || !this.sessionId) return '';
+        return `sessionUser=${this.sessionUser}; sessionId=${this.sessionId}`;
     }
 
     /**
@@ -76,6 +87,7 @@ class BugWAService {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
                         'Accept': '*/*',
+                        'Cookie': this.getCookie(),
                         'Origin': this.baseUrl,
                         'Referer': `${this.baseUrl}/execution`
                     }
@@ -156,6 +168,7 @@ class BugWAService {
                         'Content-Type': 'application/json',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
                         'Accept': '*/*',
+                        'Cookie': this.getCookie(),
                         'Origin': this.baseUrl,
                         'Referer': `${this.baseUrl}/active-attacks`
                     }
@@ -198,6 +211,7 @@ class BugWAService {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
                     'Accept': '*/*',
+                    'Cookie': this.getCookie(),
                     'Referer': `${this.baseUrl}/active-attacks`
                 }
             });
