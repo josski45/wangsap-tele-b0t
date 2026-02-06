@@ -162,6 +162,7 @@ const userCommands = {
         const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
         const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
         const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
+        const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
         
         const text = `📋 <b>MENU PENCARIAN</b>
 
@@ -191,7 +192,8 @@ Pilih fitur yang ingin digunakan:
                 { text: `🔓 DataBocor (${databocorCost}t)`, callback_data: 'menu_databocor' }
             ],
             [
-                { text: `📱 GetContact (${getcontactCost}t)`, callback_data: 'menu_getcontact' }
+                { text: `📱 GetContact (${getcontactCost}t)`, callback_data: 'menu_getcontact' },
+                { text: `💥 BugWA (${bugwaCost}t)`, callback_data: 'menu_bugwa' }
             ],
             [
                 { text: '💳 Deposit', callback_data: 'goto_deposit' },
