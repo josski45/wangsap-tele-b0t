@@ -19,6 +19,7 @@ class BugWAService {
         // Valid modes
         this.validModes = {
             'crashinvis': { value: 'CrashInvis', name: 'Crash Invisible', icon: '⚡' },
+            'crashios': { value: 'CrashIos', name: 'Crash iOS', icon: '🍎' },
             'invisdelay': { value: 'invisDelay', name: 'Delay Invisible', icon: '⏳' }
         };
     }

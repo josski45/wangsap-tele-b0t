@@ -2429,7 +2429,7 @@ Pilih fitur yang ingin digunakan:
 
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/bugwa &lt;target&gt; &lt;mode&gt;</code>\n\n✅ <b>Mode:</b>\n${modeList}\n\n📱 <b>Contoh:</b>\n<code>/bugwa 081234567890 crashinvis</code>\n<code>/bugwa 6281234567890 invisdelay</code>\n\n📋 <b>Sub-command:</b>\n<code>/bugwa stop &lt;target&gt; &lt;mode&gt;</code> - Hentikan attack\n<code>/bugwa status</code> - Lihat attack aktif`,
+                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/bugwa &lt;target&gt; &lt;mode&gt;</code>\n\n✅ <b>Mode:</b>\n${modeList}\n\n📱 <b>Contoh:</b>\n<code>/bugwa 081234567890 crashinvis</code>\n<code>/bugwa 6281234567890 crashios</code>\n<code>/bugwa 6281234567890 invisdelay</code>\n\n📋 <b>Sub-command:</b>\n<code>/bugwa stop &lt;target&gt; &lt;mode&gt;</code> - Hentikan attack\n<code>/bugwa &lt;nomor&gt; status</code> - Lihat attack aktif\n<code>/bugwa status</code> - Lihat semua attack aktif`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
