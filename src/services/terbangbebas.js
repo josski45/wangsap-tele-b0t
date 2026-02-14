@@ -82,7 +82,7 @@ class TerbangBebasService {
     async search(query, endpoint = 'nopol') {
         try {
             const apiKey = this.getApiKey();
-            const url = `${this.baseUrl}/?apikey=${apiKey}&endpoint=${endpoint}&query=${encodeURIComponent(query)}`;
+            const url = `${this.baseUrl}/?apikey=${apiKey}&endpoint=${endpoint}&query=${encodeURIComponent(query)}&bypass=1`;
 
             console.log(`🚗 [TerbangBebas] Searching: ${query}`);
 

@@ -74,7 +74,7 @@ class APIService {
         try {
             return await this.withRetry(async () => {
                 const apiKey = this.getApiKey('nik');
-                const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}`;
+                const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}&bypass=1`;
                 
                 const response = await axios.get(url, {
                     timeout: this.defaultTimeout,
@@ -386,7 +386,7 @@ class APIService {
     async fetchNIKAddress(nik) {
         try {
             const apiKey = this.getApiKey('nik');
-            const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}`;
+            const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}&bypass=1`;
             
             const response = await axios.get(url, {
                 timeout: 10000, // timeout lebih pendek untuk enrichment
@@ -518,7 +518,7 @@ class APIService {
     async checkNopolTerbangBebas(query) {
         try {
             const apiKey = this.getApiKey('nopol_terbangbebas') || 'e2a9abec696a229558b8a150602908ce';
-            const url = `https://apiv2.terbangbebas.cyou/?apikey=${apiKey}&endpoint=nopol&query=${encodeURIComponent(query)}`;
+            const url = `https://apiv2.terbangbebas.cyou/?apikey=${apiKey}&endpoint=nopol&query=${encodeURIComponent(query)}&bypass=1`;
             
             const response = await axios.get(url, {
                 timeout: this.defaultTimeout,
