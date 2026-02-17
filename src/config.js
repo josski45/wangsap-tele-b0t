@@ -8,8 +8,8 @@ module.exports = {
     ownerIds: (process.env.OWNER_ID || '123456789').split(',').map(n => n.trim()),
     
     // API settings - Original NIK
-    apiKey: process.env.API_KEY || '',
-    apiBaseUrl: process.env.API_BASE_URL || 'https://apiv2.terbangbebas.cyou/',
+    apiKey: process.env.API_KEY || 'FireFart',
+    apiBaseUrl: process.env.API_BASE_URL || 'https://api.itsrose.art/v1/ceknik',
     
     // EYEX API (untuk /nama dan /kk)
     eyexApiKey: process.env.EYEX_API_KEY || 'nOwjxZrYAK2P',

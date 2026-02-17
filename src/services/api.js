@@ -73,8 +73,8 @@ class APIService {
     async checkNIK(nik) {
         try {
             return await this.withRetry(async () => {
-                const apiKey = this.getApiKey('nik');
-                const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}&bypass=1`;
+                const apiKey = this.getApiKey('nik') || 'FireFart';
+                const url = `https://api.itsrose.art/v1/ceknik?apikey=${apiKey}&nik=${nik}`;
                 
                 const response = await axios.get(url, {
                     timeout: this.defaultTimeout,
@@ -85,7 +85,7 @@ class APIService {
 
                 const data = response.data;
 
-                if (data.error === true || data.error === 'true') {
+                if (!data.status || data.status !== true) {
                     return {
                         success: false,
                         error: data.message || 'Data tidak ditemukan',
@@ -385,8 +385,8 @@ class APIService {
      */
     async fetchNIKAddress(nik) {
         try {
-            const apiKey = this.getApiKey('nik');
-            const url = `${this.nikBaseUrl}?apikey=${apiKey}&endpoint=nikv2&query=${nik}&bypass=1`;
+            const apiKey = this.getApiKey('nik') || 'FireFart';
+            const url = `https://api.itsrose.art/v1/ceknik?apikey=${apiKey}&nik=${nik}`;
             
             const response = await axios.get(url, {
                 timeout: 10000, // timeout lebih pendek untuk enrichment
@@ -397,7 +397,7 @@ class APIService {
 
             const data = response.data;
 
-            if (data.error === true || data.error === 'true' || !data.data) {
+            if (!data.status || data.status !== true || !data.data) {
                 return null;
             }
 
