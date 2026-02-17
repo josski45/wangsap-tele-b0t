@@ -15,7 +15,7 @@ module.exports = {
     eyexApiKey: process.env.EYEX_API_KEY || 'nOwjxZrYAK2P',
     eyexBaseUrl: process.env.EYEX_BASE_URL || 'https://api.eyex.dev',
     
-    // STARKILLER API (untuk /foto, /regnik, /regsim)
+    // STARKILLER API (untuk /foto)
     starkillerApiKey: process.env.STARKILLER_API_KEY || '',
     starkillerBaseUrl: process.env.STARKILLER_BASE_URL || 'https://starkiller.space/api/v1',
     
@@ -53,8 +53,6 @@ module.exports = {
     nokaCost: parseInt(process.env.NOKA_COST) || 3,
     nosinCost: parseInt(process.env.NOSIN_COST) || 3,
     nikvehicleCost: parseInt(process.env.NIKVEHICLE_COST) || 3,
-    regnikCost: parseInt(process.env.REGNIK_COST) || 3,
-    regsimCost: parseInt(process.env.REGSIM_COST) || 3,
     databocorCost: parseInt(process.env.DATABOCOR_COST) || 3,
     riwayatCost: parseFloat(process.env.RIWAYAT_COST) || 0,
     getdataCost: parseFloat(process.env.GETDATA_COST) || 0.5,

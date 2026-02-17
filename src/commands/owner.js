@@ -591,7 +591,7 @@ const ownerCommands = {
     async setmt(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\nGunakan: <code>/setmt &lt;fitur&gt; &lt;on/off&gt;</code>\nFitur: all, ceknik, nama, kk, foto, edabu, bpjstk, nopol, regnik, regsim, databocor, getcontact, bugwa`,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/setmt &lt;fitur&gt; &lt;on/off&gt;</code>\nFitur: all, ceknik, nama, kk, foto, edabu, bpjstk, nopol, databocor, getcontact, bugwa`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -608,7 +608,7 @@ const ownerCommands = {
             return;
         }
 
-        const validFeatures = ['all', 'ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getcontact', 'bugwa'];
+        const validFeatures = ['all', 'ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'databocor', 'getcontact', 'bugwa'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -666,7 +666,7 @@ const ownerCommands = {
     async setcost(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: ceknik, nama, kk, foto, edabu, bpjstk, nopol, regnik, regsim, databocor, getcontact, getdata, bugwa\nContoh: <code>/setcost ceknik 2</code>`,
+                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: ceknik, nama, kk, foto, edabu, bpjstk, nopol, databocor, getcontact, getdata, bugwa\nContoh: <code>/setcost ceknik 2</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -675,7 +675,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'regnik', 'regsim', 'databocor', 'getcontact', 'getdata', 'bugwa'];
+        const validFeatures = ['ceknik', 'nama', 'kk', 'foto', 'edabu', 'bpjstk', 'nopol', 'databocor', 'getcontact', 'getdata', 'bugwa'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -701,8 +701,6 @@ const ownerCommands = {
             'edabu': 'edabu_cost',
             'bpjstk': 'bpjstk_cost',
             'nopol': 'nopol_cost',
-            'regnik': 'regnik_cost',
-            'regsim': 'regsim_cost',
             'databocor': 'databocor_cost',
             'getcontact': 'getcontact_cost',
             'getdata': 'getdata_cost',
@@ -771,8 +769,6 @@ const ownerCommands = {
         const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
         const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
         const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
-        const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
-        const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
         const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
         const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
         const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
@@ -783,8 +779,6 @@ const ownerCommands = {
         const mtFoto = settings.mt_foto === 'true' ? '🔴 ON' : '🟢 OFF';
         const mtEdabu = settings.mt_edabu === 'true' ? '🔴 ON' : '🟢 OFF';
         const mtNopol = settings.mt_nopol === 'true' ? '🔴 ON' : '🟢 OFF';
-        const mtRegnik = settings.mt_regnik === 'true' ? '🔴 ON' : '🟢 OFF';
-        const mtRegsim = settings.mt_regsim === 'true' ? '🔴 ON' : '🟢 OFF';
 
         let text = `<b>╔════════════════╗</b>\n<b>║</b>  ⚙️ <b>SETTINGS</b>\n<b>╚════════════════╝</b>\n`;
         
@@ -798,8 +792,6 @@ const ownerCommands = {
         text += `foto: ${fotoCost}t\n`;
         text += `edabu: ${edabuCost}t\n`;
         text += `nopol: ${nopolCost}t\n`;
-        text += `regnik: ${regnikCost}t\n`;
-        text += `regsim: ${regsimCost}t\n`;
         text += `databocor: ${databocorCost}t\n`;
         text += `getcontact: ${getcontactCost}t\n`;
         text += `getdata: ${getdataCost}t\n`;
@@ -811,8 +803,6 @@ const ownerCommands = {
         text += `foto: ${mtFoto}\n`;
         text += `edabu: ${mtEdabu}\n`;
         text += `nopol: ${mtNopol}\n`;
-        text += `regnik: ${mtRegnik}\n`;
-        text += `regsim: ${mtRegsim}\n`;
 
         await bot.sendMessage(msg.chat.id, text, { 
             parse_mode: 'HTML',

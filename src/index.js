@@ -23,8 +23,6 @@ const commandPrompts = {
     'edabu': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS:',
     'bpjstk': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS TK:',
     'nopol': '📝 Silakan kirim *Plat Nomor* yang ingin dicek (contoh: B1234XYZ):',
-    'regnik': '📝 Silakan kirim *NIK 16 digit* untuk mencari nomor HP:',
-    'regsim': '📝 Silakan kirim *Nomor HP* untuk mencari NIK (contoh: 081234567890):',
     'databocor': '📝 Silakan kirim *query* (email/phone/name/domain) untuk dicari:',
     'getcontact': '📝 Silakan kirim *Nomor HP* untuk lookup caller ID (contoh: 081234567890):',
     'bugwa': '📝 Silakan kirim *Target dan Mode* (contoh: 628xxx crashinvis):'

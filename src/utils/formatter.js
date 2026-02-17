@@ -90,8 +90,6 @@ function menuMessage() {
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
-    const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
-    const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
     const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
@@ -109,8 +107,6 @@ ${LINE.sep}
 🏥 /edabu • <code>${edabuCost} token</code>
 👷 /bpjstk • <code>${bpjstkCost} token</code>
 🚗 /nopol [PLAT/NIK/NOKA/NOSIN] • <code>${nopolCost} token</code>
-📱 /regnik • <code>${regnikCost} token</code> <i>NIK→HP</i>
-📱 /regsim • <code>${regsimCost} token</code> <i>HP→NIK</i>
 🔓 /databocor • <code>${databocorCost} token</code>
 📱 /getcontact • <code>${getcontactCost} token</code>
 💥 /bugwa • <code>${bugwaCost} token</code>
@@ -142,8 +138,6 @@ function helpMessage() {
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
-    const regnikCost = parseInt(settings.regnik_cost) || config.regnikCost || 3;
-    const regsimCost = parseInt(settings.regsim_cost) || config.regsimCost || 3;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
     const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
@@ -189,14 +183,6 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${nopolCost} token</code>
    Data: Info Kendaraan
    <i>Support: Plat Nomor / NIK / No. Rangka / No. Mesin</i>
-
-📱 <b>/regnik</b> &lt;NIK&gt;
-   Biaya: <code>${regnikCost} token</code>
-   Data: Nomor HP dari NIK
-
-📱 <b>/regsim</b> &lt;HP&gt;
-   Biaya: <code>${regsimCost} token</code>
-   Data: NIK dari Nomor HP
 
 � <b>/databocor</b> &lt;query&gt;
    Biaya: <code>${databocorCost} token</code>
@@ -251,9 +237,7 @@ ${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
 🏥 /edabu - Cek BPJS Kesehatan
 👷 /bpjstk - Cek BPJS TK
 🚗 /nopol - Cek Plat Kendaraan
-📱 /regnik - NIK ke Nomor HP
-📱 /regsim - Nomor HP ke NIK
-🔓 /databocor - Leak OSINT
+ /databocor - Leak OSINT
 📱 /getcontact - Caller ID Lookup
 💥 /bugwa - WA Crash Sender
 
@@ -962,71 +946,6 @@ ${LINE.thin}
 }
 
 // ═══════════════════════════════════════════
-// REGNIK RESULT MESSAGE (NIK -> Nomor HP)
-// ═══════════════════════════════════════════
-function regnikResultMessage(data, nik, tokenUsed, requestId = '', remainingToken = 0) {
-    const regList = data.data || [];
-    const totalData = data.jumlah_data || regList.length;
-    
-    let msg = `
-📱 <b>HASIL CEK REG NIK</b>
-${LINE.double}
-
-🆔 NIK: <code>${nik}</code>
-📊 Total: <b>${totalData} nomor</b>
-
-📋 <b>DAFTAR NOMOR HP</b>
-${LINE.thin}`;
-
-    regList.forEach((item, idx) => {
-        msg += `
-${idx + 1}. 📱 <b>${item.nomor || '-'}</b>
-   📅 ${item.register || '-'}`;
-    });
-
-    msg += `
-
-${LINE.thin}
-🆔 ID: <code>${requestId}</code>
-🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
-`;
-    return msg;
-}
-
-// ═══════════════════════════════════════════
-// REGSIM RESULT MESSAGE (Nomor HP -> NIK)
-// ═══════════════════════════════════════════
-function regsimResultMessage(data, phone, tokenUsed, requestId = '', remainingToken = 0) {
-    const regList = data.data || [];
-    const totalData = data.jumlah_data || regList.length;
-    
-    let msg = `
-📱 <b>HASIL CEK REG SIM</b>
-${LINE.double}
-
-📞 Nomor: <b>${phone}</b>
-📊 Total: <b>${totalData} data</b>
-
-📋 <b>DATA REGISTRASI</b>
-${LINE.thin}`;
-
-    regList.forEach((item, idx) => {
-        msg += `
-${idx + 1}. 🆔 NIK: <code>${item.nik || '-'}</code>
-   📱 ${item.nomor || '-'}
-   📅 ${item.register || '-'}`;
-    });
-
-    msg += `
-
-${LINE.thin}
-🆔 ID: <code>${requestId}</code>
-🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
-`;
-    return msg;
-}
-
-// ═══════════════════════════════════════════
 // DEPOSIT REQUEST MESSAGE
 // ═══════════════════════════════════════════
 function depositRequestMessage(tokenAmount, totalPrice, depositId, hasPaymentLink = false, expiresAt = null) {
@@ -1399,8 +1318,6 @@ module.exports = {
     vehicleResultMessage,
     nokaResultMessage,
     nosinResultMessage,
-    regnikResultMessage,
-    regsimResultMessage,
     depositRequestMessage,
     supportMessage,
     transactionHistoryMessage,
