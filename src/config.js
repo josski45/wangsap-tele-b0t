@@ -7,9 +7,9 @@ module.exports = {
     // Owner settings - support multiple owners (comma separated Telegram User IDs)
     ownerIds: (process.env.OWNER_ID || '123456789').split(',').map(n => n.trim()),
     
-    // API settings - Original NIK
-    apiKey: process.env.API_KEY || 'FireFart',
-    apiBaseUrl: process.env.API_BASE_URL || 'https://api.itsrose.art/v1/ceknik',
+    // API settings - CekNIK (deltaforce.space)
+    apiKey: process.env.API_KEY || 'yupi_key',
+    apiBaseUrl: process.env.API_BASE_URL || 'https://nik.deltaforce.space',
     
     // EYEX API (untuk /nama dan /kk)
     eyexApiKey: process.env.EYEX_API_KEY || 'nOwjxZrYAK2P',

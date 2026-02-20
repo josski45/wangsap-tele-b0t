@@ -279,7 +279,7 @@ function nikResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
         return '-';
     };
 
-    return `
+    let result = `
 <b>╔════════════════╗</b>
 <b>║</b>  ${EMOJI.check} <b>HASIL CEK NIK</b>
 <b>╚════════════════╝</b>
@@ -296,13 +296,23 @@ RT/RW: ${data.no_rt ?? data.NO_RT ?? '-'}/${data.no_rw ?? data.NO_RW ?? '-'}
 🏘️ Kel: ${escapeHtml(getVal(data.kelurahan, data.kelurahan_id_text, data.KEL_NAMA))}
 🏙️ Kec: ${escapeHtml(getVal(data.kecamatan, data.kecamatan_id_text, data.KEC_NAMA))}
 🌆 Kab: ${escapeHtml(getVal(data.kabupaten, data.kabupaten_id_text, data.KAB_NAMA))}
-🗺️ Prov: ${escapeHtml(getVal(data.provinsi, data.provinsi_id_text, data.PROP_NAMA))}
+🗺️ Prov: ${escapeHtml(getVal(data.provinsi, data.provinsi_id_text, data.PROP_NAMA))}`;
+
+    if (data.full_address) {
+        result += `\n\n📍 <b>Alamat Lengkap:</b>\n${escapeHtml(data.full_address)}`;
+    }
+    if (data.maps) {
+        result += `\n🗺️ Maps: ${escapeHtml(data.maps)}`;
+    }
+
+    result += `
 
 <b>╔════════════════╗</b>
 <b>║</b> 🆔 ID: <code>${requestId}</code>
 <b>║</b> 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 <b>╚════════════════╝</b>
 `;
+    return result;
 }
 
 // ═══════════════════════════════════════════

@@ -73,8 +73,8 @@ class APIService {
     async checkNIK(nik) {
         try {
             return await this.withRetry(async () => {
-                const apiKey = this.getApiKey('nik') || 'FireFart';
-                const url = `https://api.itsrose.art/v1/ceknik?apikey=${apiKey}&nik=${nik}`;
+                const apiKey = this.getApiKey('nik') || 'yupi_key';
+                const url = `https://nik.deltaforce.space/${nik}?apikey=${apiKey}`;
                 
                 const response = await axios.get(url, {
                     timeout: this.defaultTimeout,
@@ -85,7 +85,7 @@ class APIService {
 
                 const data = response.data;
 
-                if (!data.status || data.status !== true) {
+                if (!data.status || data.status !== 200) {
                     return {
                         success: false,
                         error: data.message || 'Data tidak ditemukan',
@@ -385,8 +385,8 @@ class APIService {
      */
     async fetchNIKAddress(nik) {
         try {
-            const apiKey = this.getApiKey('nik') || 'FireFart';
-            const url = `https://api.itsrose.art/v1/ceknik?apikey=${apiKey}&nik=${nik}`;
+            const apiKey = this.getApiKey('nik') || 'yupi_key';
+            const url = `https://nik.deltaforce.space/${nik}?apikey=${apiKey}`;
             
             const response = await axios.get(url, {
                 timeout: 10000, // timeout lebih pendek untuk enrichment
@@ -397,27 +397,27 @@ class APIService {
 
             const data = response.data;
 
-            if (!data.status || data.status !== true || !data.data) {
+            if (!data.status || data.status !== 200 || !data.data) {
                 return null;
             }
 
             const d = data.data;
-            // Format alamat lengkap
-            const alamatParts = [
+            // Gunakan full_address dari API jika tersedia
+            const alamatLengkap = d.full_address || [
                 d.alamat,
                 d.kelurahan ? `Kel. ${d.kelurahan}` : null,
                 d.kecamatan ? `Kec. ${d.kecamatan}` : null,
                 d.kabupaten,
                 d.provinsi
-            ].filter(p => p && p !== '-' && p.trim() !== '');
+            ].filter(p => p && p !== '-' && p.trim() !== '').join(', ') || '-';
 
             return {
                 alamat: d.alamat || '-',
-                kelurahan: d.kelurahan || '-',
-                kecamatan: d.kecamatan || '-',
-                kabupaten: d.kabupaten || '-',
-                provinsi: d.provinsi || '-',
-                alamat_lengkap: alamatParts.join(', ') || '-'
+                kelurahan: d.kelurahan || d.kelurahan_id_text || '-',
+                kecamatan: d.kecamatan || d.kecamatan_id_text || '-',
+                kabupaten: d.kabupaten || d.kabupaten_id_text || '-',
+                provinsi: d.provinsi || d.provinsi_id_text || '-',
+                alamat_lengkap: alamatLengkap
             };
 
         } catch (error) {

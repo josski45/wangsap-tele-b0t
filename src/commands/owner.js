@@ -36,9 +36,21 @@ const ownerCommands = {
      * Kirim pesan ke semua user (support multi-line & image)
      * Reply ke foto untuk broadcast foto dengan caption
      * Atau upload foto langsung dengan caption /broadcast <message>
+     * Tambahkan --pin untuk pin pesan di chat masing-masing user
      */
     async broadcast(bot, msg, args, rawText) {
         try {
+            
+            // Cek apakah ada flag --pin
+            let shouldPin = false;
+            let cleanRawText = rawText || '';
+            let cleanArgs = [...args];
+            
+            if (cleanRawText.includes('--pin')) {
+                shouldPin = true;
+                cleanRawText = cleanRawText.replace(/--pin/g, '').trim();
+            }
+            cleanArgs = cleanArgs.filter(a => a !== '--pin');
             
             // Cek apakah ada foto (reply ke foto atau langsung kirim foto)
             let photoFileId = null;
@@ -49,25 +61,25 @@ const ownerCommands = {
                 const photos = msg.photo;
                 photoFileId = photos[photos.length - 1].file_id; // Ambil resolusi tertinggi
                 // Message diambil dari rawText (caption setelah /broadcast)
-                message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+                message = (cleanRawText && cleanRawText.trim().length > 0) ? cleanRawText : cleanArgs.join(' ');
             }
             // Priority 2: Cek reply ke foto
             else if (msg.reply_to_message && msg.reply_to_message.photo) {
                 const photos = msg.reply_to_message.photo;
                 photoFileId = photos[photos.length - 1].file_id;
                 // Message dari command atau caption foto yang direply
-                message = (rawText && rawText.trim().length > 0) ? rawText : 
-                          (args.length > 0 ? args.join(' ') : msg.reply_to_message.caption || '');
+                message = (cleanRawText && cleanRawText.trim().length > 0) ? cleanRawText : 
+                          (cleanArgs.length > 0 ? cleanArgs.join(' ') : msg.reply_to_message.caption || '');
             }
             // Priority 3: Text only
             else {
-                message = (rawText && rawText.trim().length > 0) ? rawText : args.join(' ');
+                message = (cleanRawText && cleanRawText.trim().length > 0) ? cleanRawText : cleanArgs.join(' ');
             }
             
             // Jika tidak ada pesan dan tidak ada foto
             if ((!message || message.trim().length === 0) && !photoFileId) {
                 await bot.sendMessage(msg.chat.id,
-                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n\n💡 <b>Tips:</b>\n- Pesan bisa multi-line\n- Reply ke foto untuk broadcast foto + caption`,
+                    `📢 <b>Broadcast</b>\n\nFormat: <code>/broadcast &lt;pesan&gt;</code>\nContoh:\n<code>/broadcast Halo semua!</code>\n<code>/broadcast --pin Pesan penting!</code>\n\n💡 <b>Tips:</b>\n- Pesan bisa multi-line\n- Reply ke foto untuk broadcast foto + caption\n- Tambahkan <code>--pin</code> untuk pin pesan di chat user`,
                     { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
                 );
                 return;
@@ -78,25 +90,37 @@ const ownerCommands = {
             const users = db.getAllUsers();
 
             await bot.sendMessage(msg.chat.id,
-                `📢 Mengirim ${photoFileId ? '📷 foto' : '📝 pesan'} ke <b>${users.length} user</b>...`,
+                `📢 Mengirim ${photoFileId ? '📷 foto' : '📝 pesan'} ke <b>${users.length} user</b>${shouldPin ? ' (📌 + pin)' : ''}...`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
 
             let successCount = 0;
             let failCount = 0;
+            let pinCount = 0;
 
             for (const user of users) {
                 try {
+                    let sentMsg;
                     if (photoFileId) {
                         // Broadcast dengan foto
                         const caption = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
-                        await bot.sendPhoto(user.user_id, photoFileId, { caption });
+                        sentMsg = await bot.sendPhoto(user.user_id, photoFileId, { caption });
                     } else {
                         // Broadcast text biasa
                         const broadcastText = `📢 PENGUMUMAN\n\n${message}\n\n- ${config.botName}`;
-                        await bot.sendMessage(user.user_id, broadcastText);
+                        sentMsg = await bot.sendMessage(user.user_id, broadcastText);
                     }
                     successCount++;
+                    
+                    // Pin pesan jika flag --pin aktif
+                    if (shouldPin && sentMsg && sentMsg.message_id) {
+                        try {
+                            await bot.pinChatMessage(user.user_id, sentMsg.message_id, { disable_notification: false });
+                            pinCount++;
+                        } catch (pinErr) {
+                            // Ignore pin error (user mungkin block bot atau chat tidak support pin)
+                        }
+                    }
                     
                     // Delay untuk anti-ban
                     await new Promise(resolve => setTimeout(resolve, 100));
@@ -106,7 +130,7 @@ const ownerCommands = {
             }
 
             await bot.sendMessage(msg.chat.id,
-                `✅ <b>BROADCAST SELESAI</b>\n\n${photoFileId ? '📷 Dengan Foto\n' : ''}✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>`,
+                `✅ <b>BROADCAST SELESAI</b>\n\n${photoFileId ? '📷 Dengan Foto\n' : ''}✅ Berhasil: <b>${successCount}</b>\n❌ Gagal: <b>${failCount}</b>${shouldPin ? `\n📌 Pinned: <b>${pinCount}</b>` : ''}`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
         } catch (error) {
