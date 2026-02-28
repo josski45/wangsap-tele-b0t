@@ -30,9 +30,10 @@ module.exports = {
     // TerbangBebas API (untuk /nopol, /noka, /nosin, /nikvehicle)
     terbangbebasApiKey: process.env.TERBANGBEBAS_API_KEY || 'bb1939cc65b3f5dc732c8f94ce14bc92',
     
-    // Pakasir Payment Gateway (QRIS Only)
-    pakasirSlug: process.env.PAKASIR_SLUG || '',
-    pakasirApiKey: process.env.PAKASIR_API_KEY || '',
+    // Midtrans Payment Gateway (QRIS Only)
+    midtransServerKey: process.env.MIDTRANS_SERVER_KEY || '',
+    midtransClientKey: process.env.MIDTRANS_CLIENT_KEY || '',
+    midtransMerchantId: process.env.MIDTRANS_MERCHANT_ID || '',
 
     // Watermark Settings
     watermarkText: process.env.WATERMARK_TEXT || 'CONFIDENTIAL',

@@ -37,7 +37,7 @@ const commandCooldowns = new Map();
 
 // Default cooldown settings (dalam detik)
 const DEFAULT_COOLDOWNS = {
-    deposit: 30,
+    // deposit: no cooldown
     nik: 5,
     kk: 5,
     start: 5,
@@ -1235,12 +1235,6 @@ Pilih fitur yang ingin digunakan:
         const firstName = msg.from.first_name || 'User';
         const username = msg.from.username || null;
         
-        // Check cooldown untuk deposit
-        if (!checkCooldown(userId, 'deposit')) {
-            console.log(`⏳ [COOLDOWN] deposit dari ${userId} - skip`);
-            return;
-        }
-        
         const settings = db.getAllSettings();
         const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
         const minDeposit = parseInt(settings.min_deposit) || 2000; // Min deposit dari settings
@@ -1402,23 +1396,23 @@ Pilih fitur yang ingin digunakan:
 
         // Create Order with fancy ID
         const orderId = paymentService.generateOrderId(userId);
-        const pakasirResult = await paymentService.createQRISOrder(orderId, totalPrice);
+        const midtransResult = await paymentService.createQRISOrder(orderId, totalPrice);
         
         // Delete "Loading..."
         await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
 
         let depositId;
         
-        if (!pakasirResult.success) {
-            await bot.sendMessage(chatId, formatter.errorMessage('Gagal Membuat Deposit', pakasirResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
+        if (!midtransResult.success) {
+            await bot.sendMessage(chatId, formatter.errorMessage('Gagal Membuat Deposit', midtransResult.error || 'Gateway Error'), { parse_mode: 'HTML' });
             return;
         }
 
         // Save to DB
-        depositId = db.createDeposit(userId, totalPrice, tokenAmount, 'pakasir', {
-            orderId: pakasirResult.orderId,
-            checkoutUrl: pakasirResult.paymentUrl,
-            expiresAt: pakasirResult.expiresAt
+        depositId = db.createDeposit(userId, totalPrice, tokenAmount, 'midtrans', {
+            orderId: midtransResult.orderId,
+            checkoutUrl: midtransResult.paymentUrl,
+            expiresAt: midtransResult.expiresAt
         });
 
         // Build promo text if applicable
@@ -1436,28 +1430,17 @@ Pilih fitur yang ingin digunakan:
             }));
         }
 
-        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, pakasirResult.expiresAt) + promoText;
+        const text = formatter.depositRequestMessage(tokenAmount, totalPrice, orderId, true, midtransResult.expiresAt) + promoText;
         
-        // Generate QRIS image from QRIS payment string
-        let qrBuffer;
-        try {
-            qrBuffer = await QRCode.toBuffer(pakasirResult.paymentNumber, {
-                type: 'png',
-                width: 512,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
-                }
-            });
-        } catch (qrError) {
-            console.error('QR Generation Error:', qrError);
-            await bot.sendMessage(chatId, '❌ Gagal generate QRIS\n\nSilakan coba lagi nanti.', { parse_mode: 'HTML' });
-            return;
-        }
-        
-        // Build inline keyboard (tanpa payment link - secret)
+        // Build inline keyboard
         const inlineKeyboard = [];
+        
+        // If no QR string, add payment link button as fallback
+        if (!midtransResult.qrString && midtransResult.redirectUrl) {
+            inlineKeyboard.push([
+                { text: '💳 Bayar Sekarang', url: midtransResult.redirectUrl }
+            ]);
+        }
         
         // Check status button (stores depositId and userId for validation)
         inlineKeyboard.push([
@@ -1481,15 +1464,34 @@ Pilih fitur yang ingin digunakan:
             }
         }
 
-        // Send QRIS image with caption
-        const sentMsg = await bot.sendPhoto(chatId, qrBuffer, {
-            caption: text,
-            parse_mode: 'HTML',
-            reply_to_message_id: replyToMsgId,
-            reply_markup: {
-                inline_keyboard: inlineKeyboard
-            }
-        });
+        let sentMsg;
+        if (midtransResult.qrString) {
+            // Generate QR image from QRIS string
+            const qrBuffer = await QRCode.toBuffer(midtransResult.qrString, {
+                type: 'png',
+                width: 500,
+                margin: 2,
+                color: { dark: '#000000', light: '#FFFFFF' }
+            });
+            sentMsg = await bot.sendPhoto(chatId, qrBuffer, {
+                caption: text,
+                parse_mode: 'HTML',
+                reply_to_message_id: replyToMsgId,
+                reply_markup: {
+                    inline_keyboard: inlineKeyboard
+                }
+            });
+        } else {
+            // Fallback: send text with payment link
+            const fallbackText = text + `\n\n🔗 <b>Link Pembayaran:</b>\n${midtransResult.redirectUrl}`;
+            sentMsg = await bot.sendMessage(chatId, fallbackText, {
+                parse_mode: 'HTML',
+                reply_to_message_id: replyToMsgId,
+                reply_markup: {
+                    inline_keyboard: inlineKeyboard
+                }
+            });
+        }
 
         // Start Polling (Every 5s)
         const pollInterval = 5000;

@@ -1,7 +1,7 @@
 {
   "name": "telegram-nik-bot",
   "version": "2.0.0",
-  "description": "Bot Telegram NIK Validator - Enhanced Edition with Cashi.id Payment Gateway",
+  "description": "Bot Telegram NIK Validator - Enhanced Edition with Midtrans QRIS Payment Gateway",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -22,7 +22,6 @@
     "form-data": "^4.0.5",
     "jimp": "^1.6.0",
     "node-telegram-bot-api": "^0.64.0",
-    "pakasir-sdk": "^1.0.5",
     "qrcode": "^1.5.4",
     "sql.js": "^1.10.3",
     "tesseract.js": "^7.0.0"
