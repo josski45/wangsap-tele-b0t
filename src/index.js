@@ -22,7 +22,7 @@ const commandPrompts = {
     'foto': '📝 Silakan kirim *NIK 16 digit* untuk melihat foto:',
     'edabu': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS:',
     'bpjstk': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS TK:',
-    'nopol': '📝 Silakan kirim *Plat Nomor* yang ingin dicek (contoh: B1234XYZ):',
+    'nopol': '📝 Silakan kirim *Query Kendaraan* (PLAT/NOKA/NOSIN/NIK)\nContoh: B1234XYZ atau MH1JFE111EK255950:',
     'databocor': '📝 Silakan kirim *query* (email/phone/name/domain) untuk dicari:',
     'getcontact': '📝 Silakan kirim *Nomor HP* untuk lookup caller ID (contoh: 081234567890):',
     'bugwa': '📝 Silakan kirim *Target dan Mode* (contoh: 628xxx crashinvis):'

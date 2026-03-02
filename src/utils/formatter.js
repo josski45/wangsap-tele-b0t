@@ -106,7 +106,7 @@ ${LINE.sep}
 📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
 👷 /bpjstk • <code>${bpjstkCost} token</code>
-🚗 /nopol [PLAT/NIK/NOKA/NOSIN] • <code>${nopolCost} token</code>
+🚗 /nopol • <code>${nopolCost} token</code> <i>PLAT/NOKA/NOSIN/NIK</i>
 🔓 /databocor • <code>${databocorCost} token</code>
 📱 /getcontact • <code>${getcontactCost} token</code>
 💥 /bugwa • <code>${bugwaCost} token</code>
@@ -179,10 +179,9 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${bpjstkCost} token</code>
    Data: BPJS Ketenagakerjaan
 
- 🚗 <b>/nopol</b> &lt;PLAT/NIK/NOKA/NOSIN&gt;
+ 🚗 <b>/nopol</b> &lt;PLAT/NOKA/NOSIN/NIK&gt;
    Biaya: <code>${nopolCost} token</code>
-   Data: Info Kendaraan
-   <i>Support: Plat Nomor / NIK / No. Rangka / No. Mesin</i>
+   Data: Info Kendaraan (auto-detect)
 
 � <b>/databocor</b> &lt;query&gt;
    Biaya: <code>${databocorCost} token</code>
@@ -236,7 +235,7 @@ ${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
 📷 /foto - NIK + Foto KTP
 🏥 /edabu - Cek BPJS Kesehatan
 👷 /bpjstk - Cek BPJS TK
-🚗 /nopol - Cek Plat Kendaraan
+🚗 /nopol - Cek Kendaraan (PLAT/NOKA/NOSIN/NIK)
  /databocor - Leak OSINT
 📱 /getcontact - Caller ID Lookup
 💥 /bugwa - WA Crash Sender

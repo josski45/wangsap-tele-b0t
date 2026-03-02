@@ -182,12 +182,14 @@ Pilih fitur yang ingin digunakan:
                 { text: `👷 BPJS TK (${bpjstkCost}t)`, callback_data: 'menu_bpjstk' }
             ],
             [
-                { text: `🚗 Nopol (${nopolCost}t)`, callback_data: 'menu_nopol' },
-                { text: ` DataBocor (${databocorCost}t)`, callback_data: 'menu_databocor' }
+                { text: `🚗 Nopol (${nopolCost}t)`, callback_data: 'menu_nopol' }
             ],
             [
-                { text: `📱 GetContact (${getcontactCost}t)`, callback_data: 'menu_getcontact' },
-                { text: `💥 BugWA (${bugwaCost}t)`, callback_data: 'menu_bugwa' }
+                { text: ` DataBocor (${databocorCost}t)`, callback_data: 'menu_databocor' },
+                { text: `📱 GetContact (${getcontactCost}t)`, callback_data: 'menu_getcontact' }
+            ],
+            [
+                { text: `💥 BugWA (${bugwaCost}t)`, callback_data: 'menu_bugwa' },
             ],
             [
                 { text: '💳 Deposit', callback_data: 'goto_deposit' },
@@ -1002,9 +1004,8 @@ Pilih fitur yang ingin digunakan:
     },
 
     /**
-     * Command: /nopol <QUERY>
-     * Cek data kendaraan via TerbangBebas API
-     * Support: plat nomor, nomor rangka, nomor mesin, NIK
+     * Command: /nopol <PLAT_NOMOR>
+     * Cek data kendaraan berdasarkan plat nomor
      */
     async nopol(bot, msg, args) {
         const userId = msg.from.id;
@@ -1013,7 +1014,7 @@ Pilih fitur yang ingin digunakan:
         
         if (args.length === 0) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/nopol &lt;QUERY&gt;</code>\n\n✅ <b>Support Input:</b>\n• Plat Nomor: <code>/nopol B1234ABC</code>\n• No. Rangka: <code>/nopol MH1JFE111EK255950</code>\n• No. Mesin: <code>/nopol JFE1E1256050</code>\n• NIK Pemilik: <code>/nopol 3201234567890001</code>\n\n💡 <i>Sistem auto-detect tipe input</i>\n⚠️ <i>Jika punya &gt;1 kendaraan, akan dikirim terpisah</i>`,
+                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/nopol &lt;QUERY&gt;</code>\n\n✅ <b>Contoh:</b>\n• <code>/nopol B1234ABC</code> (Plat Nomor)\n• <code>/nopol MH1JFE111EK255950</code> (No. Rangka)\n• <code>/nopol JFE1E1256050</code> (No. Mesin)\n• <code>/nopol 3201234567890001</code> (NIK Pemilik)\n\n💡 <i>Support: PLAT/NOKA/NOSIN/NIK</i>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -1021,9 +1022,9 @@ Pilih fitur yang ingin digunakan:
 
         const query = args.join('').toUpperCase().replace(/\s/g, '');
 
-        if (query.length < 2 || query.length > 25) {
+        if (query.length < 2 || query.length > 30) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Input Tidak Valid</b>\n\nPanjang harus 2-25 karakter.`,
+                `❌ <b>Input Tidak Valid</b>\n\nPanjang harus 2-30 karakter.`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -1059,7 +1060,23 @@ Pilih fitur yang ingin digunakan:
 
         db.deductTokens(userId, nopolCost);
 
-        let result = await terbangbebasService.searchByNopol(query);
+        // Auto-detect query type dan panggil API yang sesuai
+        const queryType = terbangbebasService.detectQueryType(query);
+        let result;
+        switch(queryType) {
+            case 'noka':
+                result = await terbangbebasService.searchByNoka(query);
+                break;
+            case 'nosin':
+                result = await terbangbebasService.searchByNosin(query);
+                break;
+            case 'nik':
+                result = await terbangbebasService.searchByNik(query);
+                break;
+            default:
+                result = await terbangbebasService.searchByNopol(query);
+                break;
+        }
         const updatedUser = db.getUser(userId);
         const remainingToken = updatedUser?.token_balance || 0;
 

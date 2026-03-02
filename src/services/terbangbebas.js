@@ -1,7 +1,9 @@
 /**
- * TerbangBebas API Service
+ * Vehicle Lookup API Service
  * For vehicle lookups: nopol, noka, nosin, nik
- * API: https://apiv2.terbangbebas.cyou/
+ * 
+ * NEW API: Google Apps Script
+ * OLD API (disabled): https://apiv2.terbangbebas.cyou/
  */
 const axios = require('axios');
 const config = require('../config');
@@ -9,8 +11,15 @@ const db = require('../database');
 
 class TerbangBebasService {
     constructor() {
-        this.baseUrl = 'https://apiv2.terbangbebas.cyou';
-        this.defaultTimeout = 60000;
+        // ===== OLD TerbangBebas API (disabled) =====
+        // this.baseUrl = 'https://apiv2.terbangbebas.cyou';
+        // this.defaultTimeout = 60000;
+        // ===== END OLD API =====
+
+        // ===== NEW Google Apps Script API =====
+        this.baseUrl = 'https://script.google.com/macros/s/AKfycbwRRyawDaC7AEJQE4u0aiTVSNWW4foVaqXkqHa_B6TCS_YJZzT7FJWTHod5F2kErqyaRQ/exec';
+        this.defaultTimeout = 120000; // 2 menit, Google Script lebih lambat
+        // ===== END NEW API =====
     }
 
     /**
@@ -18,7 +27,10 @@ class TerbangBebasService {
      */
     getApiKey() {
         const settings = db.getAllSettings();
-        return settings.terbangbebas_api_key || config.terbangbebasApiKey || 'bb1939cc65b3f5dc732c8f94ce14bc92';
+        // ===== OLD API KEY (disabled) =====
+        // return settings.terbangbebas_api_key || config.terbangbebasApiKey || 'bb1939cc65b3f5dc732c8f94ce14bc92';
+        // ===== END OLD API KEY =====
+        return settings.terbangbebas_api_key || config.terbangbebasApiKey || '911b74942ec4fcf944dca6cc322022f';
     }
 
     /**
@@ -49,6 +61,31 @@ class TerbangBebasService {
     }
 
     /**
+     * Normalize vehicle data fields from new API to match old format
+     * New API uses: SeriWilayah, Nopol, Seri, Alamat, PlatNomor
+     * Old API used: wilayah, nopol, seri, alamat
+     */
+    normalizeVehicle(vehicle) {
+        // Parse PlatNomor (e.g. "T-6258-NP") to extract wilayah, nopol, seri
+        if (vehicle.PlatNomor) {
+            const parts = vehicle.PlatNomor.split('-');
+            if (parts.length >= 2) {
+                vehicle.wilayah = vehicle.wilayah || vehicle.SeriWilayah || parts[0] || '';
+                vehicle.nopol = vehicle.nopol || parts[1] || '';
+                vehicle.seri = vehicle.seri || (parts.length >= 3 ? parts[2] : '') || '';
+            }
+        }
+        
+        // Map new field names to old field names (for backward compatibility with formatters)
+        if (!vehicle.wilayah && vehicle.SeriWilayah) vehicle.wilayah = vehicle.SeriWilayah;
+        if (!vehicle.nopol && vehicle.Nopol) vehicle.nopol = vehicle.Nopol;
+        if (!vehicle.seri && vehicle.Seri) vehicle.seri = vehicle.Seri;
+        if (!vehicle.alamat && vehicle.Alamat) vehicle.alamat = vehicle.Alamat;
+        
+        return vehicle;
+    }
+
+    /**
      * Search by NOPOL (plat nomor)
      */
     async searchByNopol(nopol) {
@@ -59,21 +96,21 @@ class TerbangBebasService {
      * Search by NoRangka
      */
     async searchByNoka(noka) {
-        return await this.search(noka, 'nopol');
+        return await this.search(noka, 'noka');
     }
 
     /**
      * Search by NoMesin
      */
     async searchByNosin(nosin) {
-        return await this.search(nosin, 'nopol');
+        return await this.search(nosin, 'nosin');
     }
 
     /**
      * Search vehicles by NIK (can return multiple vehicles)
      */
     async searchByNik(nik) {
-        return await this.search(nik, 'nopol');
+        return await this.search(nik, 'nik');
     }
 
     /**
@@ -82,32 +119,52 @@ class TerbangBebasService {
     async search(query, endpoint = 'nopol') {
         try {
             const apiKey = this.getApiKey();
-            const url = `${this.baseUrl}/?apikey=${apiKey}&endpoint=${endpoint}&query=${encodeURIComponent(query)}&bypass=1`;
+            
+            // ===== OLD TerbangBebas URL (disabled) =====
+            // const url = `${this.baseUrl}/?apikey=${apiKey}&endpoint=${endpoint}&query=${encodeURIComponent(query)}&bypass=1`;
+            // ===== END OLD URL =====
+            
+            // ===== NEW Google Apps Script URL =====
+            const url = `${this.baseUrl}?apikey=${apiKey}&endpoint=${endpoint}&keyword=${encodeURIComponent(query)}`;
+            // ===== END NEW URL =====
 
-            console.log(`🚗 [TerbangBebas] Searching: ${query}`);
+            console.log(`🚗 [VehicleLookup] Searching ${endpoint}: ${query}`);
 
             const response = await axios.get(url, {
                 timeout: this.defaultTimeout,
                 headers: {
                     'Accept': 'application/json',
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
+                },
+                // Google Apps Script redirects, need to follow
+                maxRedirects: 5
             });
 
             const data = response.data;
 
-            // Check for error response
-            if (!data.result || data.result.length === 0) {
+            // ===== OLD response parsing (disabled) =====
+            // if (!data.result || data.result.length === 0) {
+            //     return { success: false, error: data.message || 'Data tidak ditemukan', refund: true, vehicles: [] };
+            // }
+            // const vehicles = data.result.filter(item => item !== null && typeof item === 'object');
+            // ===== END OLD parsing =====
+
+            // ===== NEW response parsing =====
+            // New API returns: { success: true, data: [...], informasi: "...", requests_today: N, limit: N }
+            if (!data.success || !data.data || data.data.length === 0) {
                 return {
                     success: false,
-                    error: data.message || 'Data tidak ditemukan',
+                    error: data.informasi || data.message || 'Data tidak ditemukan',
                     refund: true,
                     vehicles: []
                 };
             }
 
-            // Filter null values - API returns [null, {...data}]
-            const vehicles = data.result.filter(item => item !== null && typeof item === 'object');
+            // Normalize field names for backward compatibility with formatters
+            const vehicles = data.data
+                .filter(item => item !== null && typeof item === 'object')
+                .map(v => this.normalizeVehicle(v));
+            // ===== END NEW parsing =====
             
             if (vehicles.length === 0) {
                 return {
@@ -119,19 +176,21 @@ class TerbangBebasService {
             }
 
             // Success - return all vehicles
-            console.log(`✅ [TerbangBebas] Found ${vehicles.length} vehicle(s) for: ${query}`);
+            console.log(`✅ [VehicleLookup] Found ${vehicles.length} vehicle(s) for ${endpoint}: ${query}`);
 
             return {
                 success: true,
                 vehicles: vehicles,
                 totalVehicles: vehicles.length,
-                apiStatus: data.status_apikey,
-                message: data.message || 'OK',
+                apiInfo: data.informasi || '',
+                requestsToday: data.requests_today || 0,
+                apiLimit: data.limit || 0,
+                message: data.informasi || 'OK',
                 refund: false
             };
 
         } catch (error) {
-            console.error('❌ [TerbangBebas] API Error:', error.message);
+            console.error('❌ [VehicleLookup] API Error:', error.message);
             return this.handleError(error);
         }
     }
@@ -140,17 +199,17 @@ class TerbangBebasService {
      * Format single vehicle data for display
      */
     formatVehicle(vehicle, index = 1, total = 1) {
-        const wilayah = vehicle.wilayah || '';
-        const nopol = vehicle.nopol || '';
-        const seri = vehicle.seri || '';
-        const platNomor = `${wilayah} ${nopol} ${seri}`.trim() || '-';
+        const wilayah = vehicle.wilayah || vehicle.SeriWilayah || '';
+        const nopol = vehicle.nopol || vehicle.Nopol || '';
+        const seri = vehicle.seri || vehicle.Seri || '';
+        const platNomor = vehicle.PlatNomor || `${wilayah} ${nopol} ${seri}`.trim() || '-';
 
         return {
             platNomor,
-            wilayah: vehicle.wilayah || '-',
-            nopol: vehicle.nopol || '-',
-            seri: vehicle.seri || '-',
-            alamat: vehicle.alamat || '-',
+            wilayah: vehicle.wilayah || vehicle.SeriWilayah || '-',
+            nopol: vehicle.nopol || vehicle.Nopol || '-',
+            seri: vehicle.seri || vehicle.Seri || '-',
+            alamat: vehicle.alamat || vehicle.Alamat || '-',
             nikPemilik: vehicle.NoKTP || '-',
             noKK: vehicle.NoKK || '-',
             noHP: vehicle.NoHP || '-',
@@ -179,7 +238,7 @@ class TerbangBebasService {
         if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
             return {
                 success: false,
-                error: 'Request timeout, silakan coba lagi',
+                error: 'Request timeout, silakan coba lagi (Google Script lambat, coba lagi)',
                 refund: true,
                 vehicles: []
             };
