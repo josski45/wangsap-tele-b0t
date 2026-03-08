@@ -686,6 +686,41 @@ async function startBot() {
                     return;
                 }
                 
+                // ═══════════════════════════════════════════
+                // NAMA PAGINATION HANDLER
+                // ═══════════════════════════════════════════
+                if (data.startsWith('nama_page_')) {
+                    const parts = data.split('_');
+                    // Format: nama_page_<userId>_<pageNum|info>
+                    const targetUserId = parseInt(parts[2]);
+                    const pageValue = parts[3];
+
+                    if (targetUserId !== userId) {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '❌ Tombol ini bukan untuk Anda!',
+                            show_alert: true
+                        });
+                        return;
+                    }
+
+                    if (pageValue === 'info') {
+                        await bot.answerCallbackQuery(query.id, {
+                            text: '📄 Halaman saat ini',
+                            show_alert: false
+                        });
+                        return;
+                    }
+
+                    const targetPage = parseInt(pageValue);
+                    if (isNaN(targetPage) || targetPage < 1) return;
+
+                    await bot.answerCallbackQuery(query.id, {
+                        text: `⏳ Mengambil halaman ${targetPage}...`
+                    });
+                    await userCommands._namaPage(bot, chatId, userId, username, firstName, targetPage);
+                    return;
+                }
+
                 // Goto deposit handler
                 if (data === 'goto_deposit') {
                     await bot.answerCallbackQuery(query.id);

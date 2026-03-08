@@ -548,6 +548,40 @@ Pilih fitur yang ingin digunakan:
                 filename: fileName,
                 contentType: 'text/plain'
             });
+
+            // ═══════════════════════════════════════════
+            // Send pagination buttons if multiple pages
+            // ═══════════════════════════════════════════
+            const currentPage = result.data?.current_page || 1;
+            const totalPage = result.data?.total_page || 1;
+
+            if (totalPage > 1) {
+                // Store search context for pagination
+                if (!global.namaSearchContext) global.namaSearchContext = {};
+                global.namaSearchContext[userId] = {
+                    query: namaQuery,
+                    currentPage: currentPage,
+                    totalPage: totalPage,
+                    timestamp: Date.now()
+                };
+
+                const inlineButtons = [];
+                if (currentPage > 1) {
+                    inlineButtons.push({ text: `◀ Hal ${currentPage - 1}`, callback_data: `nama_page_${userId}_${currentPage - 1}` });
+                }
+                inlineButtons.push({ text: `📄 ${currentPage}/${totalPage}`, callback_data: `nama_page_${userId}_info` });
+                if (currentPage < totalPage) {
+                    inlineButtons.push({ text: `Hal ${currentPage + 1} ▶`, callback_data: `nama_page_${userId}_${currentPage + 1}` });
+                }
+
+                await bot.sendMessage(msg.chat.id,
+                    `📄 <b>Halaman ${currentPage} dari ${totalPage}</b>\n🔍 Query: <i>${formatter.escapeHtml(namaQuery)}</i>\n💰 Biaya per halaman: <b>${namaCost} token</b>`,
+                    {
+                        parse_mode: 'HTML',
+                        reply_markup: { inline_keyboard: [inlineButtons] }
+                    }
+                );
+            }
         } catch (docError) {
             console.error('Error sending document:', docError.message);
             // Fallback: send as text message
@@ -555,6 +589,161 @@ Pilih fitur yang ingin digunakan:
                 parse_mode: 'HTML',
                 reply_to_message_id: msg.message_id
             });
+        }
+    },
+
+    /**
+     * Internal: Handle nama pagination from callback button
+     */
+    async _namaPage(bot, chatId, userId, username, firstName, targetPage) {
+        // Get stored search context
+        if (!global.namaSearchContext || !global.namaSearchContext[userId]) {
+            await bot.sendMessage(chatId,
+                `❌ <b>Sesi pencarian tidak ditemukan</b>\n\nSilakan cari ulang dengan <code>/nama &lt;nama&gt;</code>`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        const ctx = global.namaSearchContext[userId];
+        // Expire after 10 minutes
+        if (Date.now() - ctx.timestamp > 10 * 60 * 1000) {
+            delete global.namaSearchContext[userId];
+            await bot.sendMessage(chatId,
+                `⏰ <b>Sesi pencarian kedaluwarsa</b>\n\nSilakan cari ulang dengan <code>/nama ${formatter.escapeHtml(ctx.query)}</code>`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        const namaQuery = ctx.query;
+        const page = parseInt(targetPage);
+        if (isNaN(page) || page < 1 || page > ctx.totalPage) return;
+
+        // Check balance
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+        const namaCost = parseInt(settings.nama_cost) || config.namaCost;
+
+        if (user.token_balance < namaCost) {
+            await bot.sendMessage(chatId,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${namaCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'nama', `${namaQuery} (hal ${page})`, 'eyex_nama', namaCost);
+
+        const processingMsg = await bot.sendMessage(chatId,
+            `⏳ <b>Mengambil halaman ${page}...</b>\n\n👤 Query: <b>${formatter.escapeHtml(namaQuery)}</b>\n🆔 ID: <code>${requestId}</code>`,
+            { parse_mode: 'HTML' }
+        );
+
+        db.deductTokens(userId, namaCost);
+
+        let result = await apiService.searchByName(namaQuery, page);
+        const updatedUser = db.getUser(userId);
+        const remainingToken = updatedUser?.token_balance || 0;
+
+        if (!result.success) {
+            db.refundTokens(userId, namaCost);
+            db.updateApiRequest(requestId, 'failed', null, null, result.error);
+            db.createTransaction(userId, 'check', namaCost, `Cari nama gagal (hal ${page})`, namaQuery, 'failed');
+            await bot.editMessageText(
+                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n🪙 Token dikembalikan: <b>${namaCost} token</b>\n🆔 ID: <code>${requestId}</code>`,
+                { chat_id: chatId, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        const totalData = result.data?.total_data || result.data?.data?.length || 0;
+        if (totalData === 0) {
+            db.refundTokens(userId, namaCost);
+            db.updateApiRequest(requestId, 'failed', null, null, 'Tidak ada data di halaman ini');
+            db.createTransaction(userId, 'check', namaCost, `Cari nama gagal (hal ${page}, 0 data)`, namaQuery, 'failed');
+            await bot.editMessageText(
+                `❌ <b>Tidak Ada Data</b>\n\n🔍 Query: <b>${formatter.escapeHtml(namaQuery)}</b>\n📄 Halaman: <b>${page}</b>\n\n🪙 Token dikembalikan: <b>${namaCost} token</b>`,
+                { chat_id: chatId, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        db.updateApiRequest(requestId, 'success', `${totalData} data (hal ${page})`, null, null, result.data);
+        db.createTransaction(userId, 'check', namaCost, `Cari nama: ${namaQuery} (hal ${page})`, null, 'success');
+
+        let captionText = formatter.namaResultMessage(result.data, result.searchName || namaQuery, namaCost, requestId, remainingToken);
+
+        // Generate TXT file
+        const dataList = result.data?.data || [];
+        let fileContent = `==========================================\n`;
+        fileContent += `HASIL PENCARIAN NAMA: ${namaQuery} (Halaman ${page})\n`;
+        fileContent += `Total Data: ${totalData}\n`;
+        fileContent += `Request ID: ${requestId}\n`;
+        fileContent += `Bot: ${config.botName}\n`;
+        fileContent += `==========================================\n\n`;
+
+        if (dataList.length > 0) {
+            dataList.forEach((item, index) => {
+                fileContent += `${index + 1}. ${item.NAMA || '-'}\n`;
+                fileContent += `   NIK          : ${item.NIK || '-'}\n`;
+                fileContent += `   NO. KK       : ${item.KK || '-'}\n`;
+                fileContent += `   TTL          : ${item.TEMPAT_LAHIR || '-'}, ${item.TANGGAL_LAHIR || '-'}\n`;
+                fileContent += `   JENIS KELAMIN: ${item.JENIS_KELAMIN || '-'}\n`;
+                fileContent += `   AGAMA        : ${item.AGAMA || '-'}\n`;
+                fileContent += `   STATUS       : ${item.STATUS || '-'}\n`;
+                fileContent += `   HUBUNGAN     : ${item.HUBUNGAN || '-'}\n`;
+                fileContent += `   GOL. DARAH   : ${item.GOL_DARAH || '-'}\n`;
+                fileContent += `   PEKERJAAN    : ${item.PEKERJAAN || '-'}\n`;
+                fileContent += `   PENDIDIKAN   : ${item.PENDIDIKAN || '-'}\n`;
+                fileContent += `   NAMA AYAH    : ${item.NAMA_AYAH || '-'}\n`;
+                fileContent += `   NAMA IBU     : ${item.NAMA_IBU || '-'}\n`;
+                fileContent += `   ALAMAT       : ${item.ALAMAT || '-'}\n`;
+                fileContent += `------------------------------------------\n`;
+            });
+        }
+        fileContent += `\nGenerate Date: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+
+        const fileName = `HASIL_${namaQuery.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}_P${page}_${requestId}.txt`;
+
+        try { await bot.deleteMessage(chatId, processingMsg.message_id); } catch (e) {}
+
+        const fileBuffer = Buffer.from(fileContent, 'utf-8');
+        await bot.sendDocument(chatId, fileBuffer, {
+            caption: captionText,
+            parse_mode: 'HTML'
+        }, {
+            filename: fileName,
+            contentType: 'text/plain'
+        });
+
+        // Update context and send new pagination buttons
+        const currentPage = result.data?.current_page || page;
+        const totalPage = result.data?.total_page || ctx.totalPage;
+        global.namaSearchContext[userId] = {
+            query: namaQuery,
+            currentPage: currentPage,
+            totalPage: totalPage,
+            timestamp: Date.now()
+        };
+
+        if (totalPage > 1) {
+            const inlineButtons = [];
+            if (currentPage > 1) {
+                inlineButtons.push({ text: `◀ Hal ${currentPage - 1}`, callback_data: `nama_page_${userId}_${currentPage - 1}` });
+            }
+            inlineButtons.push({ text: `📄 ${currentPage}/${totalPage}`, callback_data: `nama_page_${userId}_info` });
+            if (currentPage < totalPage) {
+                inlineButtons.push({ text: `Hal ${currentPage + 1} ▶`, callback_data: `nama_page_${userId}_${currentPage + 1}` });
+            }
+
+            await bot.sendMessage(chatId,
+                `📄 <b>Halaman ${currentPage} dari ${totalPage}</b>\n🔍 Query: <i>${formatter.escapeHtml(namaQuery)}</i>\n💰 Biaya per halaman: <b>${namaCost} token</b>`,
+                {
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: [inlineButtons] }
+                }
+            );
         }
     },
 
