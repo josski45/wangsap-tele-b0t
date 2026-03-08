@@ -360,7 +360,7 @@ ${LINE.double}
    ⚧️ JK: ${escapeHtml(member.JENIS_KELAMIN || '-')}
    🕌 Agama: ${escapeHtml(member.AGAMA || '-')}
    💍 Status: ${escapeHtml(member.STATUS || '-')} (${escapeHtml(member.HUBUNGAN || '-')})
-   🩸 Gol. Darah: ${escapeHtml(member.GOLONGAN_DARAH || '-')}
+   🩸 Gol. Darah: ${escapeHtml(member.GOLONGAN_DARAH || member.GOL_DARAH || '-')}
    🎓 Pendidikan: ${escapeHtml(member.PENDIDIKAN || '-')}
    💼 Pekerjaan: ${escapeHtml(member.PEKERJAAN || '-')}
    👨 Ayah: ${escapeHtml(member.NAMA_AYAH || '-')}

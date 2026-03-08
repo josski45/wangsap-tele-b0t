@@ -11,9 +11,13 @@ module.exports = {
     apiKey: process.env.API_KEY || 'yupi_key',
     apiBaseUrl: process.env.API_BASE_URL || 'https://nik.deltaforce.space',
     
-    // EYEX API (untuk /nama dan /kk)
+    // EYEX API (untuk /nama dan /kk) - LEGACY
     eyexApiKey: process.env.EYEX_API_KEY || 'nOwjxZrYAK2P',
     eyexBaseUrl: process.env.EYEX_BASE_URL || 'https://api.eyex.dev',
+    
+    // Archi3 Identity API (untuk /ceknik, /nama, /kk)
+    archi3ApiKey: process.env.ARCHI3_API_KEY || 'nOwjxZrYAK2P',
+    archi3BaseUrl: process.env.ARCHI3_BASE_URL || 'https://api.archi3.dev/identity',
     
     // STARKILLER API (untuk /foto)
     starkillerApiKey: process.env.STARKILLER_API_KEY || '',
