@@ -40,6 +40,10 @@ class APIService {
                 return result;
             } catch (error) {
                 lastError = error;
+                // Don't retry on quota exceeded (503)
+                if (error.response && error.response.status === 503) {
+                    throw error;
+                }
                 console.log(`⚠️ API attempt ${attempt}/${retries} failed: ${error.message}`);
                 if (attempt < retries) {
                     await this.delay(2000); // wait 2s before retry
@@ -500,8 +504,18 @@ class APIService {
 
         if (error.response) {
             const status = error.response.status;
+            const respData = error.response.data;
             let errorMsg = 'Gagal memproses permintaan';
-            
+
+            // Archi3 quota exceeded (503 with "Kuota telah habis")
+            if (status === 503 && respData && typeof respData.message === 'string' && respData.message.toLowerCase().includes('kuota')) {
+                return {
+                    success: false,
+                    error: '⚠️ Kuota server habis, normal kembali jam 00:00 WIB',
+                    refund: true
+                };
+            }
+
             if (status === 429) {
                 errorMsg = 'Terlalu banyak permintaan, coba lagi nanti';
             } else if (status === 401 || status === 403) {
