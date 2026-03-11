@@ -2,31 +2,14 @@ const config = require('../config');
 const db = require('../database');
 const apiService = require('../services/api');
 const paymentService = require('../services/payment');
-const satsiberService = require('../services/satsiber');
 const terbangbebasService = require('../services/terbangbebas');
 const bugwaService = require('../services/bugwa');
 const { isValidNIK, isValidKK } = require('../utils/helper');
 const formatter = require('../utils/formatter');
-const { satsiberFotoResultMessage, vehicleResultMessage } = require('../utils/formatter');
+const { ceknomorResultMessage, vehicleResultMessage } = require('../utils/formatter');
 const axios = require('axios');
 const https = require('https');
 const QRCode = require('qrcode');
-const { Jimp, loadFont } = require('jimp');
-const { SANS_16_WHITE, SANS_32_WHITE } = require('jimp/fonts');
-
-// Helper functions for Jimp text measurement
-function measureText(font, text) {
-    let width = 0;
-    for (const char of text) {
-        const charData = font.chars[char];
-        if (charData) width += charData.xadvance || charData.width || 8;
-    }
-    return width;
-}
-
-function measureTextHeight(font, text) {
-    return font.common?.lineHeight || 32;
-}
 
 /**
  * User Commands untuk Telegram Bot
@@ -154,7 +137,7 @@ const userCommands = {
         const checkCost = parseInt(settings.check_cost) || config.checkCost;
         const namaCost = parseInt(settings.nama_cost) || config.namaCost;
         const kkCost = parseInt(settings.kk_cost) || config.kkCost;
-        const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
+        const ceknomorCost = parseInt(settings.ceknomor_cost) || config.ceknomorCost;
         const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
         const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
         const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
@@ -170,12 +153,14 @@ Pilih fitur yang ingin digunakan:
         // Build inline keyboard with costs
         const inlineKeyboard = [
             [
+                { text: `� CekNomor (${ceknomorCost}t)`, callback_data: 'menu_ceknomor' }
+            ],
+            [
                 { text: `🔍 CekNIK (${checkCost}t)`, callback_data: 'menu_ceknik' },
                 { text: `👤 Nama (${namaCost}t)`, callback_data: 'menu_nama' }
             ],
             [
-                { text: `👨‍👩‍👧‍👦 KK (${kkCost}t)`, callback_data: 'menu_kk' },
-                { text: `📷 Foto (${fotoCost}t)`, callback_data: 'menu_foto' }
+                { text: `👨‍👩‍👧‍👦 KK (${kkCost}t)`, callback_data: 'menu_kk' }
             ],
             [
                 { text: `🏥 BPJS (${edabuCost}t)`, callback_data: 'menu_edabu' },
@@ -267,6 +252,97 @@ Pilih fitur yang ingin digunakan:
             reply_markup: {
                 inline_keyboard: inlineKeyboard
             }
+        });
+    },
+
+    /**
+     * Command: /ceknomor <nomor HP>
+     * Cek data dari nomor HP
+     */
+    async ceknomor(bot, msg, args) {
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'User';
+        const username = msg.from.username || null;
+
+        if (args.length === 0) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/ceknomor &lt;NoHP&gt;</code>\nContoh: <code>/ceknomor 081234567890</code>\nContoh: <code>/ceknomor 6281234567890</code>`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        // Normalize phone number: strip non-digits, convert leading 0 to 62
+        let nomorInput = args[0].replace(/[^0-9]/g, '');
+        if (nomorInput.startsWith('0')) {
+            nomorInput = '62' + nomorInput.substring(1);
+        }
+
+        if (nomorInput.length < 10 || nomorInput.length > 15) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Nomor HP Tidak Valid</b>\n\nMasukkan nomor HP yang valid (10-15 digit)`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const user = db.getOrCreateUser(userId, username, firstName);
+        const settings = db.getAllSettings();
+
+        if (settings.mt_ceknomor === 'true') {
+            await bot.sendMessage(msg.chat.id,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>CEK NOMOR</b> sedang dalam perbaikan.`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const ceknomorCost = parseInt(settings.ceknomor_cost) || config.ceknomorCost;
+
+        if (user.token_balance < ceknomorCost) {
+            await bot.sendMessage(msg.chat.id,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${ceknomorCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+
+        const requestId = db.createApiRequest(userId, 'ceknomor', nomorInput, 'ceknomor', ceknomorCost);
+
+        const processingMsg = await bot.sendMessage(msg.chat.id,
+            `⏳ <b>Sedang Proses...</b>\n\n📱 Mencari data nomor: <b>${nomorInput}</b>\n🆔 ID: <code>${requestId}</code>\n<i>Mohon tunggu sebentar</i>`,
+            { parse_mode: 'HTML' }
+        );
+
+        db.deductTokens(userId, ceknomorCost);
+
+        const result = await apiService.checkNomor(nomorInput);
+
+        const updatedUser = db.getUser(userId);
+        const remainingToken = updatedUser?.token_balance || 0;
+
+        if (!result.success) {
+            if (result.refund) {
+                db.refundTokens(userId, ceknomorCost);
+            }
+            db.updateApiRequest(requestId, 'failed', null, null, result.error);
+            db.createTransaction(userId, 'check', ceknomorCost, `Cek nomor gagal${result.refund ? ' (refund)' : ''}`, nomorInput, 'failed');
+
+            await bot.editMessageText(
+                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${ceknomorCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+            );
+            return;
+        }
+
+        db.updateApiRequest(requestId, 'success', 'Data ditemukan', null, null, result.data);
+        db.createTransaction(userId, 'check', ceknomorCost, `Cek nomor berhasil`, nomorInput, 'success');
+
+        const text = ceknomorResultMessage(result.data, ceknomorCost, requestId, remainingToken);
+        await bot.editMessageText(text, {
+            chat_id: msg.chat.id,
+            message_id: processingMsg.message_id,
+            parse_mode: 'HTML'
         });
     },
 
@@ -849,212 +925,6 @@ Pilih fitur yang ingin digunakan:
             message_id: processingMsg.message_id,
             parse_mode: 'HTML'
         });
-    },
-
-    /**
-     * Command: /foto <NIK>
-     * Uses Satsiber API with rate limiting queue (3 req/min)
-     */
-    async foto(bot, msg, args) {
-        const userId = msg.from.id;
-        const firstName = msg.from.first_name || 'User';
-        const username = msg.from.username || null;
-        
-        // Show queue status on help
-        const queueStatus = satsiberService.getQueueStatus();
-        
-        if (args.length === 0) {
-            let helpText = `❌ <b>Format Salah</b>\n\nGunakan: <code>/foto &lt;NIK&gt;</code>\nContoh: <code>/foto 1234567890123456</code>`;
-            
-            if (queueStatus.queueLength > 0) {
-                helpText += `\n\n📊 <b>Status Antrian:</b>\n🔄 Antrian: ${queueStatus.queueLength} request\n⏱️ Estimasi: ~${Math.ceil(queueStatus.estimatedWaitTime / 1000)}s`;
-            }
-            
-            await bot.sendMessage(msg.chat.id, helpText,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-            return;
-        }
-
-        const nik = args[0].replace(/\D/g, '');
-
-        if (!isValidNIK(nik)) {
-            await bot.sendMessage(msg.chat.id,
-                `❌ <b>NIK Tidak Valid</b>\n\nNIK harus <b>16 digit angka</b>`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-            return;
-        }
-
-        const user = db.getOrCreateUser(userId, username, firstName);
-        const settings = db.getAllSettings();
-
-        if (settings.mt_foto === 'true') {
-            await bot.sendMessage(msg.chat.id,
-                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>CEK FOTO</b> sedang dalam perbaikan.`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-            return;
-        }
-
-        const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
-
-        if (user.token_balance < fotoCost) {
-            await bot.sendMessage(msg.chat.id,
-                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${fotoCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
-                { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
-            );
-            return;
-        }
-
-        const requestId = db.createApiRequest(userId, 'foto', nik, 'satsiber', fotoCost);
-
-        // Initial processing message with queue info
-        const currentQueueStatus = satsiberService.getQueueStatus();
-        let initialMsg = `⏳ <b>Sedang Proses...</b>\n\n📷 Mencari NIK + Foto: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>`;
-        
-        if (currentQueueStatus.queueLength > 0) {
-            initialMsg += `\n\n📊 <b>Antrian:</b> ${currentQueueStatus.queueLength} request\n⏱️ <b>Estimasi:</b> ~${Math.ceil(currentQueueStatus.estimatedWaitTime / 1000)}s`;
-        }
-
-        const processingMsg = await bot.sendMessage(msg.chat.id, initialMsg, { parse_mode: 'HTML' });
-
-        db.deductTokens(userId, fotoCost);
-
-        // Queue update callback
-        const onQueueUpdate = async (status) => {
-            try {
-                if (status.position > 0) {
-                    await bot.editMessageText(
-                        `⏳ <b>Dalam Antrian...</b>\n\n📷 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n📊 <b>Posisi:</b> ${status.position} dari ${status.total}\n⏱️ <b>Estimasi:</b> ~${Math.ceil(status.estimatedWait / 1000)}s\n\n<i>🔄 Rate limit: 3 req/menit</i>`,
-                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-                    );
-                } else {
-                    await bot.editMessageText(
-                        `⏳ <b>Memproses...</b>\n\n📷 NIK: <b>${nik}</b>\n🆔 ID: <code>${requestId}</code>\n\n<i>🔄 Menghubungi server Satsiber...</i>`,
-                        { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-                    );
-                }
-            } catch (e) {
-                // Ignore edit errors (e.g., message deleted)
-            }
-        };
-
-        // Request to Satsiber API with queue
-        const result = await satsiberService.requestNikToPhoto(nik, onQueueUpdate);
-        
-        const updatedUser = db.getUser(userId);
-        const remainingToken = updatedUser?.token_balance || 0;
-
-        // Handle error/not_found status
-        if (result.status === 'error' || result.status === 'not_found') {
-            if (result.refund) {
-                db.refundTokens(userId, fotoCost);
-            }
-            db.updateApiRequest(requestId, 'failed', null, null, result.message);
-            db.createTransaction(userId, 'check', fotoCost, `Cek foto gagal`, nik, 'failed');
-            
-            await bot.editMessageText(
-                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.message || 'Terjadi kesalahan')}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${fotoCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
-                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-            );
-            return;
-        }
-
-        // Handle no_photo status - refund half tokens
-        if (result.status === 'no_photo') {
-            const halfCost = Math.floor(fotoCost / 2);
-            db.refundTokens(userId, halfCost);
-            
-            const finalUser = db.getUser(userId);
-            const finalBalance = finalUser?.token_balance || 0;
-            
-            db.updateApiRequest(requestId, 'partial', 'Data ditemukan, foto tidak tersedia', null, null, result.data);
-            db.createTransaction(userId, 'check', halfCost, `Cek foto (tanpa gambar)`, nik, 'success');
-            
-            const captionText = satsiberFotoResultMessage(result.data, halfCost, requestId, finalBalance, false);
-            
-            await bot.editMessageText(
-                `${captionText}\n\n<b>📷 FOTO TIDAK DITEMUKAN</b>\n🪙 Token dikembalikan: <b>${halfCost} token</b> (setengah harga)`,
-                { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
-            );
-            return;
-        }
-
-        db.updateApiRequest(requestId, 'success', result.status === 'success' ? 'Data + Foto ditemukan' : 'Data ditemukan', null, null, result.data);
-        db.createTransaction(userId, 'check', fotoCost, `Cek foto berhasil`, nik, 'success');
-
-        // Pass hasPhoto flag to formatter
-        const hasPhoto = !!(result.data && result.data.photoBuffer);
-        const captionText = satsiberFotoResultMessage(result.data, fotoCost, requestId, remainingToken, hasPhoto);
-
-        // Delete processing message
-        await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
-
-        // Send photo if available (photoBuffer is inside result.data)
-        if (result.data && result.data.photoBuffer) {
-            try {
-                // Apply watermark with Telegram User ID
-                let photoBuffer = result.data.photoBuffer;
-                
-                try {
-                    const image = await Jimp.read(photoBuffer);
-                    const w = image.bitmap.width;
-                    const h = image.bitmap.height;
-                    
-                    const scale = Math.min(w, h);
-                    const useBig = scale >= 800;
-                    const fontBrand = await loadFont(useBig ? SANS_32_WHITE : SANS_16_WHITE);
-                    const fontSmall = await loadFont(SANS_16_WHITE);
-                    
-                    const timestamp = new Date().toLocaleString('id-ID', { 
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit',
-                        timeZone: 'Asia/Jakarta'
-                    }).replace(/\//g, '-');
-                    
-                    const pad = Math.round(Math.max(14, Math.min(42, scale * 0.02)));
-                    const stroke = Math.round(Math.max(2, Math.min(6, scale * 0.005)));
-                    
-                    // Watermark text with Telegram User ID
-                    const watermarkText = `@${userId}`;
-                    const timeText = timestamp;
-                    
-                    // Simple text rendering
-                    const textW1 = measureText(fontBrand, watermarkText);
-                    const textW2 = measureText(fontSmall, timeText);
-                    
-                    // Draw watermark at bottom right
-                    image.print({ font: fontBrand, x: w - textW1 - pad, y: h - 60 - pad, text: watermarkText });
-                    image.print({ font: fontSmall, x: w - textW2 - pad, y: h - 30 - pad, text: timeText });
-                    
-                    // Also draw at top left for visibility
-                    image.print({ font: fontBrand, x: pad, y: pad, text: watermarkText });
-                    
-                    photoBuffer = await image.getBuffer('image/jpeg');
-                } catch (wmError) {
-                    console.error('Watermark error:', wmError.message);
-                    // Continue without watermark
-                }
-                
-                await bot.sendPhoto(msg.chat.id, photoBuffer, {
-                    caption: captionText,
-                    parse_mode: 'HTML',
-                    reply_to_message_id: msg.message_id
-                });
-            } catch (e) {
-                console.error('Error sending photo:', e);
-                await bot.sendMessage(msg.chat.id, captionText, { 
-                    parse_mode: 'HTML',
-                    reply_to_message_id: msg.message_id 
-                });
-            }
-        } else {
-            await bot.sendMessage(msg.chat.id, captionText + '\n\n<i>📷 Foto tidak tersedia</i>', { 
-                parse_mode: 'HTML',
-                reply_to_message_id: msg.message_id 
-            });
-        }
     },
 
     /**

@@ -100,10 +100,10 @@ ${EMOJI.diamond} <b>${config.botName.toUpperCase()}</b>
 
 ${EMOJI.search} <b>MENU PENCARIAN</b>
 ${LINE.sep}
+📱 /ceknomor • <code>${ceknomorCost} token</code>
 🔍 /ceknik • <code>${checkCost} token</code>
 👤 /nama • <code>${namaCost} token</code>
 👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
-📷 /foto • <code>${fotoCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
 👷 /bpjstk • <code>${bpjstkCost} token</code>
 🚗 /nopol • <code>${nopolCost} token</code> <i>PLAT/NOKA/NOSIN/NIK</i>
@@ -131,10 +131,10 @@ ${LINE.sep}
 function helpMessage() {
     const settings = db.getAllSettings();
     const tokenPrice = parseInt(settings.token_price) || config.tokenPrice;
+    const ceknomorCost = parseInt(settings.ceknomor_cost) || config.ceknomorCost;
     const checkCost = parseInt(settings.check_cost) || config.checkCost;
     const namaCost = parseInt(settings.nama_cost) || config.namaCost;
     const kkCost = parseInt(settings.kk_cost) || config.kkCost;
-    const fotoCost = parseInt(settings.foto_cost) || config.fotoCost;
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
@@ -155,6 +155,10 @@ Harga: ${formatRupiah(tokenPrice)}/token
 
 <b>2️⃣ CEK DATA</b>
 
+� <b>/ceknomor</b> &lt;NoHP&gt;
+   Biaya: <code>${ceknomorCost} token</code>
+   Data: Nama, NIK, Provider, Alamat
+
 🔍 <b>/ceknik</b> &lt;NIK&gt;
    Biaya: <code>${checkCost} token</code>
    Data: Nama, TTL, Alamat
@@ -166,10 +170,6 @@ Harga: ${formatRupiah(tokenPrice)}/token
 👨‍👩‍👧‍👦 <b>/kk</b> &lt;No.KK&gt;
    Biaya: <code>${kkCost} token</code>
    Data: Anggota Keluarga
-
-📷 <b>/foto</b> &lt;NIK&gt;
-   Biaya: <code>${fotoCost} token</code>
-   Data: Detail + Foto KTP
 
 🏥 <b>/edabu</b> &lt;NIK&gt;
    Biaya: <code>${edabuCost} token</code>
@@ -229,10 +229,10 @@ Bot pencarian data NIK Indonesia.
 📊 Cek Hari Ini: <b>${todayChecks}x</b>
 
 ${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
+� /ceknomor - Cek Nomor HP
 🔍 /ceknik - Cek NIK Basic
 👤 /nama - Cari berdasarkan Nama
 👨‍👩‍👧‍👦 /kk - Cek Kartu Keluarga
-📷 /foto - NIK + Foto KTP
 🏥 /edabu - Cek BPJS Kesehatan
 👷 /bpjstk - Cek BPJS TK
 🚗 /nopol - Cek Kendaraan (PLAT/NOKA/NOSIN/NIK)
@@ -263,6 +263,36 @@ ${LINE.sep}
 📅 Join: ${formatDate(user.created_at)}
 
 <i>Ketik /deposit untuk isi ulang</i>
+`;
+}
+
+// ═══════════════════════════════════════════
+// CEK NOMOR HP RESULT MESSAGE
+// ═══════════════════════════════════════════
+function ceknomorResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
+    return `
+📱 <b>HASIL CEK NOMOR HP</b>
+${LINE.double}
+
+<b>📋 IDENTITAS</b>
+👤 Nama: <b>${escapeHtml(data.nama || '-')}</b>
+🆔 NIK: <code>${data.nik || '-'}</code>
+⚧️ Kelamin: ${escapeHtml(data.kelamin || '-')}
+📅 Lahir: ${escapeHtml(data.lahir || '-')}
+
+<b>📱 INFO NOMOR</b>
+📞 Phone: <code>${data.phone || '-'}</code>
+📡 Provider: ${escapeHtml(data.provider || '-')}
+📅 Reg Date: ${escapeHtml(data.reg_date || '-')}
+
+<b>🏠 ALAMAT</b>
+🏙️ Kecamatan: ${escapeHtml(data.kecamatan || '-')}
+🌆 Kota/Kab: ${escapeHtml(data.kotakab || '-')}
+🗺️ Provinsi: ${escapeHtml(data.provinsi || '-')}
+
+${LINE.thin}
+🆔 ID: <code>${requestId}</code>
+🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
 }
 
@@ -389,93 +419,6 @@ ${LINE.thin}
 🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
 `;
     return msg;
-}
-
-// ═══════════════════════════════════════════
-// FOTO RESULT MESSAGE
-// ═══════════════════════════════════════════
-function fotoResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
-    const result = data[0]?.data?.[0] || data || {};
-    
-    return `
-${EMOJI.camera} <b>CEK NIK + FOTO</b>
-${LINE.double}
-
-<b>📋 IDENTITAS</b>
-🆔 NIK: <code>${result.nik || '-'}</code>
-👤 Nama: <b>${escapeHtml(result.nama || '-')}</b>
-📅 TTL: ${escapeHtml(result.ttl || '-')}
-⚧️ JK: ${escapeHtml(result.jk || '-')}
-💍 Status: ${escapeHtml(result.status_perkawinan || '-')}
-
-<b>👨‍👩‍👧‍👦 KELUARGA</b>
-👨 Ayah: ${escapeHtml(result.nama_ayah || '-')}
-👩 Ibu: ${escapeHtml(result.nama_ibu || '-')}
-📋 No. KK: <code>${result.kk || '-'}</code>
-
-<b>🏠 ALAMAT</b>
-${escapeHtml(result.alamat || '-')}
-🏙️ Kec: ${escapeHtml(result.kecamatan || '-')}
-🌆 Kab: ${escapeHtml(result.kabupaten || '-')}
-🗺️ Prov: ${escapeHtml(result.provinsi || '-')}
-
-<b>💼 PEKERJAAN</b>
-${escapeHtml(result.pekerjaan || '-')}
-
-${LINE.thin}
-🆔 ID: <code>${requestId}</code>
-🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
-`;
-}
-
-// ═══════════════════════════════════════════
-// SATSIBER FOTO RESULT MESSAGE
-// ═══════════════════════════════════════════
-function satsiberFotoResultMessage(data, tokenUsed, requestId = '', remainingToken = 0, hasPhoto = false) {
-    const result = data || {};
-    
-    // Build TTL string
-    const ttl = result.tempat_lahir && result.tanggal_lahir 
-        ? `${result.tempat_lahir}, ${result.tanggal_lahir}` 
-        : (result.tempat_lahir || result.tanggal_lahir || '-');
-    
-    // Build full address
-    const alamatParts = [
-        result.alamat,
-        result.kelurahan ? `Kel. ${result.kelurahan}` : null,
-        result.kecamatan ? `Kec. ${result.kecamatan}` : null,
-        result.kabupaten,
-        result.provinsi
-    ].filter(Boolean);
-    const fullAlamat = alamatParts.length > 0 ? alamatParts.join(', ') : '-';
-    
-    return `
-${EMOJI.camera} <b>CEK NIK + FOTO</b>
-${LINE.double}
-
-<b>📋 IDENTITAS</b>
-🆔 NIK: <code>${result.nik || '-'}</code>
-👤 Nama: <b>${escapeHtml(result.nama || '-')}</b>
-📅 TTL: ${escapeHtml(ttl)}
-🕌 Agama: ${escapeHtml(result.agama || '-')}
-💍 Status: ${escapeHtml(result.status_kawin || '-')}
-
-<b>👨‍👩‍👧‍👦 KELUARGA</b>
-📋 No. KK: <code>${result.no_kk || '-'}</code>
-👨 Ayah: ${escapeHtml(result.nama_ayah || '-')}
-👩 Ibu: ${escapeHtml(result.nama_ibu || '-')}
-
-<b>🏠 ALAMAT LENGKAP</b>
-${escapeHtml(fullAlamat)}
-
-<b>📚 PENDIDIKAN & PEKERJAAN</b>
-🎓 Pendidikan: ${escapeHtml(result.pendidikan || '-')}
-💼 Pekerjaan: ${escapeHtml(result.pekerjaan || '-')}
-
-${LINE.thin}
-🆔 ID: <code>${requestId}</code>
-🪙 Token: <b>-${tokenUsed}</b> (Sisa: <b>${remainingToken}</b>)
-`;
 }
 
 // ═══════════════════════════════════════════
@@ -1317,10 +1260,9 @@ module.exports = {
     welcomeMessage,
     balanceMessage,
     nikResultMessage,
+    ceknomorResultMessage,
     namaResultMessage,
     kkResultMessage,
-    fotoResultMessage,
-    satsiberFotoResultMessage,
     edabuResultMessage,
     bpjstkResultMessage,
     nopolResultMessage,

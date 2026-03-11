@@ -78,6 +78,44 @@ class APIService {
     }
 
     /**
+     * CEK NOMOR HP (Phone Lookup API)
+     */
+    async checkNomor(phone) {
+        try {
+            const url = `http://202.10.42.105:9000/api/lookup?nomer=${encodeURIComponent(phone)}`;
+            console.log(`🔍 [PhoneLookup] Checking: ${phone}`);
+
+            const response = await axios.get(url, { timeout: 30000 });
+            const data = response.data;
+
+            if (!data || !data.nama) {
+                return {
+                    success: false,
+                    error: 'Data tidak ditemukan untuk nomor tersebut',
+                    refund: true
+                };
+            }
+
+            console.log(`✅ [PhoneLookup] Found: ${data.nama}`);
+            return {
+                success: true,
+                data: data,
+                refund: false
+            };
+        } catch (error) {
+            console.error('PhoneLookup API Error:', error.message);
+            if (error.response && error.response.status === 404) {
+                return {
+                    success: false,
+                    error: 'Data tidak ditemukan untuk nomor tersebut',
+                    refund: true
+                };
+            }
+            return this.handleError(error);
+        }
+    }
+
+    /**
      * CEK NIK (Archi3 Identity API)
      */
     async checkNIK(nik) {
