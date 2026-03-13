@@ -30,6 +30,14 @@ module.exports = {
     // NOPOL API (untuk /nopol - Cek Plat Nomor - Legacy)
     nopolApiKey: process.env.NOPOL_API_KEY || '',
     nopolBaseUrl: process.env.NOPOL_BASE_URL || 'https://siakses.my.id/api',
+
+    // ASEX Vehicle Queue API (untuk /nopol, /noka, /nosin, /nikplat)
+    asexApiKey: process.env.ASEX_API_KEY || '',
+    asexApiBaseUrl: process.env.ASEX_API_BASE_URL || 'https://asexapi.cloud/api/nopol/',
+    asexApiResultUrl: process.env.ASEX_API_RESULT_URL || 'https://asexapi.cloud/api/nopol/get-result.php',
+    asexInitialDelayMs: parseInt(process.env.ASEX_INITIAL_DELAY_MS) || 30000,
+    asexPollIntervalMs: parseInt(process.env.ASEX_POLL_INTERVAL_MS) || 15000,
+    asexPollTimeoutMs: parseInt(process.env.ASEX_POLL_TIMEOUT_MS) || 600000,
     
     // TerbangBebas API (untuk /nopol, /noka, /nosin, /nikvehicle)
     terbangbebasApiKey: process.env.TERBANGBEBAS_API_KEY || 'bb1939cc65b3f5dc732c8f94ce14bc92',
@@ -58,7 +66,8 @@ module.exports = {
     nopolCost: parseInt(process.env.NOPOL_COST) || 3,
     nokaCost: parseInt(process.env.NOKA_COST) || 3,
     nosinCost: parseInt(process.env.NOSIN_COST) || 3,
-    nikvehicleCost: parseInt(process.env.NIKVEHICLE_COST) || 3,
+    nikplatCost: parseInt(process.env.NIKPLAT_COST) || parseInt(process.env.NIKVEHICLE_COST) || 3,
+    nikvehicleCost: parseInt(process.env.NIKPLAT_COST) || parseInt(process.env.NIKVEHICLE_COST) || 3,
     databocorCost: parseInt(process.env.DATABOCOR_COST) || 3,
     riwayatCost: parseFloat(process.env.RIWAYAT_COST) || 0,
     getdataCost: parseFloat(process.env.GETDATA_COST) || 0.5,

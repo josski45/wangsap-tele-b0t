@@ -90,6 +90,9 @@ function menuMessage() {
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+    const nokaCost = parseInt(settings.noka_cost) || config.nokaCost;
+    const nosinCost = parseInt(settings.nosin_cost) || config.nosinCost;
+    const nikplatCost = parseInt(settings.nikplat_cost) || config.nikplatCost;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
     const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
@@ -106,7 +109,10 @@ ${LINE.sep}
 👨‍👩‍👧‍👦 /kk • <code>${kkCost} token</code>
 🏥 /edabu • <code>${edabuCost} token</code>
 👷 /bpjstk • <code>${bpjstkCost} token</code>
-🚗 /nopol • <code>${nopolCost} token</code> <i>PLAT/NOKA/NOSIN/NIK</i>
+ 🚗 /nopol • <code>${nopolCost} token</code>
+ 🔧 /noka • <code>${nokaCost} token</code>
+ 🔩 /nosin • <code>${nosinCost} token</code>
+ 🪪 /nikplat • <code>${nikplatCost} token</code>
 🔓 /databocor • <code>${databocorCost} token</code>
 📱 /getcontact • <code>${getcontactCost} token</code>
 💥 /bugwa • <code>${bugwaCost} token</code>
@@ -138,6 +144,9 @@ function helpMessage() {
     const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
     const bpjstkCost = parseInt(settings.bpjstk_cost) || config.bpjstkCost || 3;
     const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+    const nokaCost = parseInt(settings.noka_cost) || config.nokaCost;
+    const nosinCost = parseInt(settings.nosin_cost) || config.nosinCost;
+    const nikplatCost = parseInt(settings.nikplat_cost) || config.nikplatCost;
     const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
     const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
     const bugwaCost = parseInt(settings.bugwa_cost) || config.bugwaCost || 3;
@@ -179,9 +188,21 @@ Harga: ${formatRupiah(tokenPrice)}/token
    Biaya: <code>${bpjstkCost} token</code>
    Data: BPJS Ketenagakerjaan
 
- 🚗 <b>/nopol</b> &lt;PLAT/NOKA/NOSIN/NIK&gt;
-   Biaya: <code>${nopolCost} token</code>
-   Data: Info Kendaraan (auto-detect)
+ 🚗 <b>/nopol</b> &lt;PLAT&gt;
+    Biaya: <code>${nopolCost} token</code>
+    Data: Info Kendaraan dari plat
+
+ 🔧 <b>/noka</b> &lt;NO_RANGKA&gt;
+    Biaya: <code>${nokaCost} token</code>
+    Data: Info Kendaraan dari no rangka
+
+ 🔩 <b>/nosin</b> &lt;NO_MESIN&gt;
+    Biaya: <code>${nosinCost} token</code>
+    Data: Info Kendaraan dari no mesin
+
+ 🪪 <b>/nikplat</b> &lt;NIK_KTP&gt;
+    Biaya: <code>${nikplatCost} token</code>
+    Data: Info Kendaraan dari NIK pemilik
 
 🔓 <b>/databocor</b> &lt;query&gt;
    Biaya: <code>${databocorCost} token</code>
@@ -235,7 +256,10 @@ ${EMOJI.sparkle} <b>FITUR PENCARIAN:</b>
 👨‍👩‍👧‍👦 /kk - Cek Kartu Keluarga
 🏥 /edabu - Cek BPJS Kesehatan
 👷 /bpjstk - Cek BPJS TK
-🚗 /nopol - Cek Kendaraan (PLAT/NOKA/NOSIN/NIK)
+🚗 /nopol - Cek Kendaraan dari Plat
+🔧 /noka - Cek Kendaraan dari No. Rangka
+🔩 /nosin - Cek Kendaraan dari No. Mesin
+🪪 /nikplat - Cek Kendaraan dari NIK KTP
  /databocor - Leak OSINT
 📱 /getcontact - Caller ID Lookup
 💥 /bugwa - WA Crash Sender
@@ -729,7 +753,7 @@ ${LINE.double}
 // NOPOL RESULT MESSAGE (Legacy - kept for backwards compatibility)
 // ═══════════════════════════════════════════
 function nopolResultMessage(data, tokenUsed, requestId = '', remainingToken = 0) {
-    const platNomor = `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
+    const platNomor = data.plate_number || `${data.wilayah || ''} ${data.nopol || ''} ${data.seri || ''}`.trim();
     
     return `
 🚗 <b>HASIL CEK NOPOL</b>
@@ -737,29 +761,30 @@ ${LINE.double}
 
 🔖 <b>INFO KENDARAAN</b>
 Plat: <b>${escapeHtml(platNomor)}</b>
-Merk: ${escapeHtml(data.Merk || '-')}
-Type: ${escapeHtml(data.Type || '-')}
-Tahun: ${escapeHtml(data.TahunPembuatan || '-')}
-Warna: ${escapeHtml(data.Warna || '-')}
-CC: ${escapeHtml(data.IsiCylinder || '-')}
-Roda: ${data.JumlahRoda || '-'}
+ Merk: ${escapeHtml(data.merk || data.Merk || '-')}
+ Type: ${escapeHtml(data.type_model || data.Type || '-')}
+ Model: ${escapeHtml(data.model || '-')}
+ Tahun: ${escapeHtml(data.tahun_pembuatan || data.TahunPembuatan || '-')}
+ Warna: ${escapeHtml(data.warna || data.Warna || '-')}
+ CC: ${escapeHtml(data.isi_silinder || data.IsiCylinder || '-')}
+ Roda: ${data.jumlah_roda || data.JumlahRoda || '-'}
 
 📋 <b>DOKUMEN</b>
-No. Rangka: <code>${data.NoRangka || '-'}</code>
-No. Mesin: <code>${data.NoMesin || '-'}</code>
-No. BPKB: <code>${data.NoBPKB || '-'}</code>
-No. STNK: <code>${data.NoSTNK || '-'}</code>
-APM: ${escapeHtml(data.APM || '-')}
+ No. Rangka: <code>${data.no_rangka || data.NoRangka || '-'}</code>
+ No. Mesin: <code>${data.no_mesin || data.NoMesin || '-'}</code>
+ No. BPKB: <code>${data.no_bpkb || data.NoBPKB || '-'}</code>
+ No. STNK: <code>${data.no_stnk || data.NoSTNK || '-'}</code>
+ Tgl Daftar: ${escapeHtml(data.tanggal_daftar || data.TanggalDaftar || '-')}
 
 👤 <b>PEMILIK</b>
-Nama: <b>${escapeHtml(data.NamaPemilik || '-')}</b>
-NIK: <code>${data.NoKTP || '-'}</code>
-No. KK: <code>${data.NoKK || '-'}</code>
-HP: ${escapeHtml(data.NoHP || '-')}
-Pekerjaan: ${escapeHtml(data.Pekerjaan || '-')}
+ Nama: <b>${escapeHtml(data.nama_pemilik || data.NamaPemilik || '-')}</b>
+ NIK: <code>${data.no_ktp || data.NoKTP || '-'}</code>
+ No. KK: <code>${data.no_kk || data.NoKK || '-'}</code>
+ HP: ${escapeHtml(data.no_hp || data.NoHP || '-')}
+ Pekerjaan: ${escapeHtml(data.pekerjaan || data.Pekerjaan || '-')}
 
 🏠 <b>ALAMAT</b>
-${escapeHtml(data.alamat || '-')}
+ ${escapeHtml(data.alamat || data.Alamat || '-')}
 
 ${LINE.thin}
 🆔 ID: <code>${requestId}</code>

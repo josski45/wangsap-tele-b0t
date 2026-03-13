@@ -2,11 +2,11 @@ const config = require('../config');
 const db = require('../database');
 const apiService = require('../services/api');
 const paymentService = require('../services/payment');
-const terbangbebasService = require('../services/terbangbebas');
+const asexVehicleService = require('../services/asexVehicle');
 const bugwaService = require('../services/bugwa');
 const { isValidNIK, isValidKK } = require('../utils/helper');
 const formatter = require('../utils/formatter');
-const { ceknomorResultMessage, vehicleResultMessage } = require('../utils/formatter');
+const { ceknomorResultMessage } = require('../utils/formatter');
 const axios = require('axios');
 const https = require('https');
 const QRCode = require('qrcode');
@@ -167,7 +167,12 @@ Pilih fitur yang ingin digunakan:
                 { text: `👷 BPJS TK (${bpjstkCost}t)`, callback_data: 'menu_bpjstk' }
             ],
             [
-                { text: `🚗 Nopol (${nopolCost}t)`, callback_data: 'menu_nopol' }
+                { text: `🚗 Nopol (${nopolCost}t)`, callback_data: 'menu_nopol' },
+                { text: `🔧 Noka (${parseInt(settings.noka_cost) || config.nokaCost}t)`, callback_data: 'menu_noka' }
+            ],
+            [
+                { text: `🔩 Nosin (${parseInt(settings.nosin_cost) || config.nosinCost}t)`, callback_data: 'menu_nosin' },
+                { text: `🪪 NikPlat (${parseInt(settings.nikplat_cost) || config.nikplatCost}t)`, callback_data: 'menu_nikplat' }
             ],
             [
                 { text: ` DataBocor (${databocorCost}t)`, callback_data: 'menu_databocor' },
@@ -1062,28 +1067,23 @@ Pilih fitur yang ingin digunakan:
         }
     },
 
-    /**
-     * Command: /nopol <PLAT_NOMOR>
-     * Cek data kendaraan berdasarkan plat nomor
-     */
-    async nopol(bot, msg, args) {
+    async _vehicleLookup(bot, msg, args, commandName, costKey, title, example) {
         const userId = msg.from.id;
         const firstName = msg.from.first_name || 'User';
         const username = msg.from.username || null;
-        
+
         if (args.length === 0) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Format Salah</b>\n\n📋 <b>Cara Penggunaan:</b>\n<code>/nopol &lt;QUERY&gt;</code>\n\n✅ <b>Contoh:</b>\n• <code>/nopol B1234ABC</code> (Plat Nomor)\n• <code>/nopol MH1JFE111EK255950</code> (No. Rangka)\n• <code>/nopol JFE1E1256050</code> (No. Mesin)\n• <code>/nopol 3201234567890001</code> (NIK Pemilik)\n\n💡 <i>Support: PLAT/NOKA/NOSIN/NIK</i>`,
+                `❌ <b>Format Salah</b>\n\nGunakan: <code>/${commandName} &lt;input&gt;</code>\nContoh: <code>/${commandName} ${example}</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
         }
 
         const query = args.join('').toUpperCase().replace(/\s/g, '');
-
-        if (query.length < 2 || query.length > 30) {
+        if (query.length < 2 || query.length > 40) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Input Tidak Valid</b>\n\nPanjang harus 2-30 karakter.`,
+                `❌ <b>Input Tidak Valid</b>\n\nPanjang harus 2-40 karakter.`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -1094,92 +1094,95 @@ Pilih fitur yang ingin digunakan:
 
         if (settings.mt_nopol === 'true') {
             await bot.sendMessage(msg.chat.id,
-                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>CEK NOPOL</b> sedang dalam perbaikan.`,
+                `⚠️ <b>MAINTENANCE</b>\n\nFitur <b>${formatter.escapeHtml(title.toUpperCase())}</b> sedang dalam perbaikan.`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
         }
 
-        const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+        const configCostMap = {
+            nopol_cost: config.nopolCost,
+            noka_cost: config.nokaCost,
+            nosin_cost: config.nosinCost,
+            nikplat_cost: config.nikplatCost
+        };
+        const lookupCost = parseInt(settings[costKey]) || configCostMap[costKey];
 
-        if (user.token_balance < nopolCost) {
+        if (user.token_balance < lookupCost) {
             await bot.sendMessage(msg.chat.id,
-                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${nopolCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
+                `❌ <b>Saldo Tidak Cukup</b>\n\n🪙 Saldo: <b>${user.token_balance} token</b>\n💰 Biaya: <b>${lookupCost} token</b>\n\nKetik <code>/deposit</code> untuk top up`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
         }
 
-        const requestId = db.createApiRequest(userId, 'nopol', query, 'terbangbebas', nopolCost);
-
+        const requestId = db.createApiRequest(userId, commandName, query, 'asex_vehicle', lookupCost);
         const processingMsg = await bot.sendMessage(msg.chat.id,
-            `⏳ <b>Sedang Proses...</b>\n\n🔍 Mencari: <b>${query}</b>\n🆔 ID: <code>${requestId}</code>`,
+            `⏳ <b>Sedang Proses...</b>\n\n🔍 ${formatter.escapeHtml(title)}: <b>${formatter.escapeHtml(query)}</b>\n🆔 ID: <code>${requestId}</code>\n<i>Masuk antrian, hasil bisa 2 menit atau lebih</i>`,
             { parse_mode: 'HTML' }
         );
 
-        db.deductTokens(userId, nopolCost);
+        db.deductTokens(userId, lookupCost);
 
-        // Auto-detect query type dan panggil API yang sesuai
-        const queryType = terbangbebasService.detectQueryType(query);
-        let result;
-        switch(queryType) {
-            case 'noka':
-                result = await terbangbebasService.searchByNoka(query);
-                break;
-            case 'nosin':
-                result = await terbangbebasService.searchByNosin(query);
-                break;
-            case 'nik':
-                result = await terbangbebasService.searchByNik(query);
-                break;
-            default:
-                result = await terbangbebasService.searchByNopol(query);
-                break;
-        }
-        const updatedUser = db.getUser(userId);
-        const remainingToken = updatedUser?.token_balance || 0;
-
-        if (!result.success) {
-            if (result.refund) {
-                db.refundTokens(userId, nopolCost);
-            }
-            db.updateApiRequest(requestId, 'failed', null, null, result.error);
-            db.createTransaction(userId, 'check', nopolCost, `Cek Nopol gagal`, query, 'failed');
-            
+        const submit = await asexVehicleService.submitLookup(commandName, query);
+        if (!submit.success) {
+            if (submit.refund) db.refundTokens(userId, lookupCost);
+            db.updateApiRequest(requestId, 'failed', null, null, submit.error);
+            db.createTransaction(userId, 'check', lookupCost, `${title} gagal`, query, 'failed');
             await bot.editMessageText(
-                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(result.error)}\n\n${result.refund ? `🪙 Token dikembalikan: <b>${nopolCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
+                `❌ <b>Gagal</b>\n\n${formatter.escapeHtml(submit.error)}\n\n${submit.refund ? `🪙 Token dikembalikan: <b>${lookupCost} token</b>\n` : ''}🆔 ID: <code>${requestId}</code>`,
                 { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
             );
             return;
         }
 
-        const vehicles = result.vehicles;
-        const totalVehicles = vehicles.length;
+        await bot.editMessageText(
+            `⏳ <b>Request Masuk Antrian</b>\n\n🔍 ${formatter.escapeHtml(title)}: <b>${formatter.escapeHtml(query)}</b>\n🆔 ID: <code>${requestId}</code>\n📮 Request Code: <code>${submit.requestCode}</code>\n\n<i>Bot akan mengirim hasil otomatis setelah selesai.</i>`,
+            { chat_id: msg.chat.id, message_id: processingMsg.message_id, parse_mode: 'HTML' }
+        );
 
-        db.updateApiRequest(requestId, 'success', `${vehicles[0]?.NamaPemilik || 'Data'}`, null, null, vehicles);
-        db.createTransaction(userId, 'check', nopolCost, `Cek Nopol berhasil (${totalVehicles} kendaraan)`, query, 'success');
+        asexVehicleService.startPolling(submit.requestCode, async () => {
+            const result = await asexVehicleService.waitForResult(submit.requestCode);
 
-        // Delete processing message
-        await bot.deleteMessage(msg.chat.id, processingMsg.message_id);
-
-        // Send each vehicle as separate message
-        for (let i = 0; i < totalVehicles; i++) {
-            const vehicle = vehicles[i];
-            let text;
-            
-            if (totalVehicles === 1) {
-                text = formatter.nopolResultMessage(vehicle, nopolCost, requestId, remainingToken);
-            } else {
-                text = vehicleResultMessage(vehicle, i + 1, totalVehicles, query, nopolCost, requestId, remainingToken);
+            if (!result.success) {
+                if (result.refund) db.refundTokens(userId, lookupCost);
+                db.updateApiRequest(requestId, 'failed', null, null, result.error);
+                db.createTransaction(userId, 'check', lookupCost, `${title} gagal`, query, 'failed');
+                await bot.sendMessage(msg.chat.id,
+                    `❌ <b>${formatter.escapeHtml(title.toUpperCase())} GAGAL</b>\n\n${formatter.escapeHtml(result.error)}\n🆔 ID: <code>${requestId}</code>${result.refund ? `\n🪙 Token dikembalikan: <b>${lookupCost}</b>` : ''}`,
+                    { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
+                ).catch(() => {});
+                return;
             }
-            
-            await bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML' });
-            
-            // Small delay between messages
-            if (i < totalVehicles - 1) {
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
-        }
+
+            db.updateApiRequest(requestId, 'success', `${result.result?.nama_pemilik || 'Data kendaraan'}`, null, null, result.result);
+            db.createTransaction(userId, 'check', lookupCost, `${title} berhasil`, query, 'success');
+
+            const latestUser = db.getUser(userId);
+            const latestRemaining = latestUser?.token_balance || 0;
+            const text = formatter.nopolResultMessage(result.result, lookupCost, requestId, latestRemaining);
+            await bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML', reply_to_message_id: msg.message_id }).catch(() => {});
+        }).catch(() => {});
+    },
+
+    async nopol(bot, msg, args) {
+        return this._vehicleLookup(bot, msg, args, 'nopol', 'nopol_cost', 'Cek Nopol', 'F1331GW');
+    },
+
+    async noka(bot, msg, args) {
+        return this._vehicleLookup(bot, msg, args, 'noka', 'noka_cost', 'Cek Noka', 'MHL2020230L032555');
+    },
+
+    async nosin(bot, msg, args) {
+        return this._vehicleLookup(bot, msg, args, 'nosin', 'nosin_cost', 'Cek Nosin', '11197460005377');
+    },
+
+    async nikplat(bot, msg, args) {
+        return this._vehicleLookup(bot, msg, args, 'nikplat', 'nikplat_cost', 'Cek NikPlat', '3201381611850001');
+    },
+
+    async nik(bot, msg, args) {
+        return this.nikplat(bot, msg, args);
     },
 
     /**

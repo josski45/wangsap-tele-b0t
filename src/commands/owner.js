@@ -22,13 +22,58 @@ const ownerCommands = {
     /**
      * Command: /listuser
      */
-    async listuser(bot, msg) {
+    async listuser(bot, msg, args = []) {
         const users = db.getAllUsers();
-        const text = formatter.userListMessage(users);
+        const query = args.join(' ').trim();
+
+        if (query.toLowerCase() === 'txt') {
+            const fileContent = users.map((user, index) => {
+                return `${index + 1}. ${user.user_id}\n   Nama: ${user.first_name || user.username || '-'}\n   Username: ${user.username || '-'}\n   Token: ${user.token_balance}\n   Checks: ${user.total_checks}\n   Join: ${user.created_at}`;
+            }).join('\n\n');
+
+            await bot.sendDocument(msg.chat.id, Buffer.from(fileContent || 'Tidak ada user', 'utf-8'), {
+                caption: `📄 <b>LIST USER</b>\n\nTotal: <b>${users.length}</b> user`,
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id
+            }, {
+                filename: `listuser_${Date.now()}.txt`,
+                contentType: 'text/plain'
+            });
+            return;
+        }
+
+        let filteredUsers = users;
+        let page = 1;
+        let keyword = '';
+
+        if (args.length > 0) {
+            const pageArg = args.find(arg => /^\d+$/.test(arg));
+            if (pageArg) page = parseInt(pageArg);
+            keyword = args.filter(arg => arg !== pageArg).join(' ').trim().toLowerCase();
+            if (keyword) {
+                filteredUsers = users.filter(user =>
+                    String(user.user_id || '').toLowerCase().includes(keyword) ||
+                    String(user.first_name || '').toLowerCase().includes(keyword) ||
+                    String(user.username || '').toLowerCase().includes(keyword)
+                );
+            }
+        }
+
+        const perPage = 20;
+        const totalPage = Math.max(1, Math.ceil(filteredUsers.length / perPage));
+        const currentPage = Math.min(Math.max(page, 1), totalPage);
+        const start = (currentPage - 1) * perPage;
+        const pagedUsers = filteredUsers.slice(start, start + perPage);
+
+        const text = formatter.userListMessage(pagedUsers) + `\n\n📄 Halaman: <b>${currentPage}/${totalPage}</b>\n🔎 Filter: <b>${formatter.escapeHtml(keyword || '-')}</b>\n👥 Total Filtered: <b>${filteredUsers.length}</b>\n\n<i>Gunakan /listuser &lt;page&gt; [filter] atau /listuser txt</i>`;
         await bot.sendMessage(msg.chat.id, text, { 
             parse_mode: 'HTML',
             reply_to_message_id: msg.message_id 
         });
+    },
+
+    async listusers(bot, msg, args = []) {
+        return this.listuser(bot, msg, args);
     },
 
     /**
@@ -690,7 +735,7 @@ const ownerCommands = {
     async setcost(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: ceknomor, ceknik, nama, kk, edabu, bpjstk, nopol, databocor, getcontact, getdata, bugwa\nContoh: <code>/setcost ceknomor 3</code>`,
+                `🪙 <b>Set Biaya Fitur</b>\n\nFormat: <code>/setcost &lt;fitur&gt; &lt;cost&gt;</code>\nFitur: ceknomor, ceknik, nama, kk, edabu, bpjstk, nopol, noka, nosin, nikplat, databocor, getcontact, getdata, bugwa\nContoh: <code>/setcost ceknomor 3</code>`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -699,7 +744,7 @@ const ownerCommands = {
         const feature = args[0].toLowerCase();
         const cost = parseFloat(args[1]);
         
-        const validFeatures = ['ceknomor', 'ceknik', 'nama', 'kk', 'edabu', 'bpjstk', 'nopol', 'databocor', 'getcontact', 'getdata', 'bugwa'];
+        const validFeatures = ['ceknomor', 'ceknik', 'nama', 'kk', 'edabu', 'bpjstk', 'nopol', 'noka', 'nosin', 'nikplat', 'databocor', 'getcontact', 'getdata', 'bugwa'];
         if (!validFeatures.includes(feature)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Fitur tidak valid. Pilih: ${validFeatures.join(', ')}`,
@@ -725,6 +770,9 @@ const ownerCommands = {
             'edabu': 'edabu_cost',
             'bpjstk': 'bpjstk_cost',
             'nopol': 'nopol_cost',
+            'noka': 'noka_cost',
+            'nosin': 'nosin_cost',
+            'nikplat': 'nikplat_cost',
             'databocor': 'databocor_cost',
             'getcontact': 'getcontact_cost',
             'getdata': 'getdata_cost',
@@ -746,7 +794,7 @@ const ownerCommands = {
     async setapi(bot, msg, args) {
         if (args.length < 2) {
             await bot.sendMessage(msg.chat.id,
-                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu, nopol, nopol_tb`,
+                `🔑 <b>Set API Key</b>\n\nFormat: <code>/setapi &lt;type&gt; &lt;key&gt;</code>\nType: nik, eyex, starkiller, edabu, nopol, asex`,
                 { parse_mode: 'HTML', reply_to_message_id: msg.message_id }
             );
             return;
@@ -755,7 +803,7 @@ const ownerCommands = {
         const type = args[0].toLowerCase();
         const key = args[1];
         
-        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu', 'nopol', 'nopol_tb'];
+        const validTypes = ['nik', 'eyex', 'starkiller', 'edabu', 'nopol', 'asex'];
         if (!validTypes.includes(type)) {
             await bot.sendMessage(msg.chat.id,
                 `❌ Type tidak valid. Pilih: ${validTypes.join(', ')}`,
@@ -770,7 +818,7 @@ const ownerCommands = {
             'starkiller': 'starkiller_api_key',
             'edabu': 'edabu_api_key',
             'nopol': 'nopol_api_key',
-            'nopol_tb': 'nopol_terbangbebas_api_key'
+            'asex': 'asex_api_key'
         };
         const settingKey = settingKeyMap[type];
         db.setSetting(settingKey, key);
@@ -793,6 +841,9 @@ const ownerCommands = {
         const ceknomorCost = parseInt(settings.ceknomor_cost) || config.ceknomorCost;
         const edabuCost = parseInt(settings.edabu_cost) || config.edabuCost;
         const nopolCost = parseInt(settings.nopol_cost) || config.nopolCost;
+        const nokaCost = parseInt(settings.noka_cost) || config.nokaCost;
+        const nosinCost = parseInt(settings.nosin_cost) || config.nosinCost;
+        const nikplatCost = parseInt(settings.nikplat_cost) || config.nikplatCost;
         const databocorCost = parseInt(settings.databocor_cost) || config.databocorCost || 3;
         const getcontactCost = parseInt(settings.getcontact_cost) || config.getcontactCost || 3;
         const getdataCost = parseFloat(settings.getdata_cost) || config.getdataCost;
@@ -816,6 +867,9 @@ const ownerCommands = {
         text += `kk: ${kkCost}t\n`;
         text += `edabu: ${edabuCost}t\n`;
         text += `nopol: ${nopolCost}t\n`;
+        text += `noka: ${nokaCost}t\n`;
+        text += `nosin: ${nosinCost}t\n`;
+        text += `nikplat: ${nikplatCost}t\n`;
         text += `databocor: ${databocorCost}t\n`;
         text += `getcontact: ${getcontactCost}t\n`;
         text += `getdata: ${getdataCost}t\n`;

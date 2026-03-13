@@ -22,7 +22,10 @@ const commandPrompts = {
     'kk': '📝 Silakan kirim *Nomor KK 16 digit* yang ingin dicek:',
     'edabu': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS:',
     'bpjstk': '📝 Silakan kirim *NIK 16 digit* untuk cek BPJS TK:',
-    'nopol': '📝 Silakan kirim *Query Kendaraan* (PLAT/NOKA/NOSIN/NIK)\nContoh: B1234XYZ atau MH1JFE111EK255950:',
+    'nopol': '📝 Silakan kirim *Nomor Plat*\nContoh: F1331GW',
+    'noka': '📝 Silakan kirim *Nomor Rangka*\nContoh: MHL2020230L032555',
+    'nosin': '📝 Silakan kirim *Nomor Mesin*\nContoh: 11197460005377',
+    'nikplat': '📝 Silakan kirim *NIK KTP pemilik*\nContoh: 3201381611850001',
     'databocor': '📝 Silakan kirim *query* (email/phone/name/domain) untuk dicari:',
     'getcontact': '📝 Silakan kirim *Nomor HP* untuk lookup caller ID (contoh: 081234567890):',
     'bugwa': '📝 Silakan kirim *Target dan Mode* (contoh: 628xxx crashinvis):'
